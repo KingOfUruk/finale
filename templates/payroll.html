@@ -1,0 +1,2364 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Paie</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/payroll.css') }}">
+</head>
+<body>
+<div class="container">
+    <nav class="sidebar">
+        <h2>Navigation</h2>
+        <div class="nav-item active" data-target="overview" onclick="showSection('overview')">📈 Vue d'ensemble</div>
+        <div class="nav-item" data-target="salary" onclick="showSection('salary')">💰 Analyse salariale</div>
+        <div class="nav-item" data-target="workforce" onclick="showSection('workforce')">👥 Effectifs</div>
+        <div class="nav-item" data-target="financial" onclick="showSection('financial')">💳 Santé financière</div>
+        <div class="nav-item" data-target="alerts" onclick="showSection('alerts')">⚠️ Alertes</div>
+        <div class="nav-item" data-target="top-earners" onclick="showSection('top-earners')">🏆 Top salariés</div>
+        <div class="nav-item" data-target="forecast" onclick="showSection('forecast')">🔮 Prévisions</div>
+        <div class="nav-item" data-target="scenario" onclick="showSection('scenario')">🧮 Scénarios</div>
+        <div class="nav-item" data-target="assistant" onclick="showSection('assistant')">🤖 Assistant RH</div>
+    </nav>
+
+    <div class="main-content">
+        <header class="header">
+            <div class="header-content">
+                <div class="header-hero">
+                    <span class="header-kicker"><i class="fas fa-coins"></i> Pilotage paie</span>
+                    <h1>Analyse de la masse salariale</h1>
+                    <p class="header-description">Anticipez les charges, surveillez les effectifs payés et sécurisez vos engagements financiers.</p>
+                    <div id="connectionStatus" class="connection-status status-connected">
+                        <i class="fas fa-circle"></i>
+                        <span>Connecté à Oracle</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div class="year-selector">
+                        <label for="yearSelect">Année</label>
+                        <select id="yearSelect" class="year-select" onchange="onYearChange()">
+                            <option value="">Toutes les années</option>
+                        </select>
+                    </div>
+                    <div class="controls">
+                        <button class="btn" id="themeToggle" type="button" onclick="toggleDarkMode()">
+                            <i class="fas fa-moon"></i>
+                            <span>Mode sombre</span>
+                        </button>
+                        <button class="btn" onclick="refreshAllData()" id="refreshBtn">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>Actualiser</span>
+                        </button>
+                        <button class="btn" type="button" onclick="exportData()">
+                            <i class="fas fa-file-export"></i>
+                            <span>Exporter</span>
+                        </button>
+                        <a href="{{ url_for('login.homepage') }}" class="btn btn-home">
+                            <i class="fas fa-home"></i>
+                            <span>Accueil</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="dashboard">
+            <div class="section-card" id="summary">
+                <div class="section-header">
+                    <div class="section-title">📊 Résumé rapide</div>
+                </div>
+                <div class="kpi-grid" id="summaryKPIs">
+                    <div class="loading"><div class="spinner"></div>Chargement...</div>
+                </div>
+            </div>
+
+            <div class="section-card active" id="overview">
+                <div class="section-header">
+                    <div>
+                        <div class="section-title">📈 Vue d'ensemble</div>
+                        <div class="section-subtitle">Synthèse des flux de paie</div>
+                    </div>
+            </div>
+            <div class="kpi-grid" id="overviewKPIs">
+                <div class="loading"><div class="spinner"></div>Chargement...</div>
+            </div>
+            <div class="anomaly-panel" id="overviewAnomalies"></div>
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3 class="chart-title">Tendance mensuelle <span class="info-icon" data-tooltip="Évolution mensuelle de la masse salariale nette et des charges sociales.">i</span></h3>
+                    <canvas id="overviewTrendChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">Tendance annuelle <span class="info-icon" data-tooltip="Comparaison annuelle des masses salariales nettes, brutes et charges.">i</span></h3>
+                    <canvas id="historicalTrendChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">Salaire net moyen par mois <span class="info-icon" data-tooltip="Salaire net moyen mensuel ajusté selon le temps de présence de chaque collaborateur.">i</span></h3>
+                    <canvas id="monthlyAverageChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">Salaire net moyen par trimestre <span class="info-icon" data-tooltip="Salaire net moyen par trimestre, calculé à partir des montants et effectifs distincts.">i</span></h3>
+                    <canvas id="seasonalAverageChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card" id="salary">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">💰 Analyse salariale</div>
+                    <div class="section-subtitle">Étude des rémunérations et primes</div>
+                </div>
+            </div>
+            <div class="summary-pill-group" id="compensationSummary"></div>
+            <div class="drilldown-panel">
+                <label for="serviceDrilldownSelect">Explorer un service :</label>
+                <select id="serviceDrilldownSelect" class="drilldown-select"></select>
+                <div class="drilldown-cards" id="serviceDrilldownCards"></div>
+            </div>
+            <div class="ranking-grid">
+                <div class="ranking-card">
+                    <div class="ranking-title">Top services (salaire net moyen)</div>
+                    <div class="ranking-list" id="serviceRankingList"></div>
+                </div>
+                <div class="ranking-card">
+                    <div class="ranking-title">Top catégories (salaire net moyen)</div>
+                    <div class="ranking-list" id="categoryRankingList"></div>
+                </div>
+            </div>
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3 class="chart-title">Salaire net moyen par catégorie <span class="info-icon" data-tooltip="Moyenne des salaires nets calculée par catégorie de personnel sur la période sélectionnée.">i</span></h3>
+                    <canvas id="salaryCategoryChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">Distribution des salaires nets <span class="info-icon" data-tooltip="Répartition du nombre de collaborateurs par tranches de salaires nets (TND).">i</span></h3>
+                    <canvas id="salaryDistributionChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">Salaire net moyen par genre <span class="info-icon" data-tooltip="Comparaison des salaires nets moyens entre les genres déclarés.">i</span></h3>
+                    <canvas id="salaryGenderChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">Salaire net moyen par service <span class="info-icon" data-tooltip="Classement des services selon le salaire net moyen par collaborateur sur la période.">i</span></h3>
+                    <canvas id="salaryServiceAvgChart"></canvas>
+                </div>
+            </div>
+            <div class="section-header">
+                <div>
+                    <div class="section-title">👤 Revenus mensuels par collaborateur</div>
+                    <div class="section-subtitle">Top rémunérations nettes par service ou catégorie (12 derniers mois)</div>
+                </div>
+            </div>
+            <div class="employee-breakdown">
+                <div class="breakdown-tabs">
+                    <button type="button" class="breakdown-tab active" data-breakdown="service">Par service</button>
+                    <button type="button" class="breakdown-tab" data-breakdown="categorie">Par catégorie</button>
+                </div>
+                <div class="breakdown-controls">
+                    <span class="controls-label">Période :</span>
+                    <div class="month-chips">
+                        <button type="button" class="month-chip" data-months="3">3M</button>
+                        <button type="button" class="month-chip active" data-months="6">6M</button>
+                        <button type="button" class="month-chip" data-months="12">12M</button>
+                    </div>
+                </div>
+                <div class="breakdown-table" id="employeeBreakdownTable">
+                    <div class="loading"><div class="spinner"></div>Chargement...</div>
+                </div>
+            </div>
+                <div class="section-header">
+                    <div class="section-title">🏢 Salaires par service</div>
+                </div>
+                <div class="service-salaries-container" id="serviceSalariesContainer">
+                    <div class="loading"><div class="spinner"></div>Chargement...</div>
+                </div>
+                <div class="section-header">
+                    <div class="section-title">🎁 Top primes</div>
+                </div>
+                <div class="info-grid" id="topBonusesContainer"></div>
+            </div>
+
+            <div class="section-card" id="workforce">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">👥 Analyse des effectifs</div>
+                    <div class="section-subtitle">Structure démographique et services</div>
+                </div>
+            </div>
+            <div class="kpi-grid" id="workforceKPIs"></div>
+            <div class="headcount-breakdown">
+                <div class="headcount-card">
+                    <div class="headcount-title">Effectifs par service</div>
+                    <div class="headcount-list" id="serviceHeadcountList"></div>
+                </div>
+                <div class="headcount-card">
+                    <div class="headcount-title">Effectifs par catégorie</div>
+                    <div class="headcount-list" id="categoryHeadcountList"></div>
+                </div>
+            </div>
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3 class="chart-title">Répartition par âge <span class="info-icon" data-tooltip="Pourcentage des collaborateurs par tranche d'âge ou bande d'âge disponible.">i</span></h3>
+                    <canvas id="workforceAgeChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">Répartition par ancienneté <span class="info-icon" data-tooltip="Nombre de collaborateurs segmentés par ancienneté dans l'entreprise.">i</span></h3>
+                    <canvas id="workforceTenureChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">Effectif par service <span class="info-icon" data-tooltip="Nombre de collaborateurs actifs par service sur la période sélectionnée.">i</span></h3>
+                    <canvas id="workforceServiceChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+            <div class="section-card" id="financial">
+                <div class="section-header">
+                    <div>
+                        <div class="section-title">💳 Santé financière</div>
+                        <div class="section-subtitle">Charges, avances et primes</div>
+                    </div>
+                </div>
+                <div class="kpi-grid" id="financialKPIs">
+                    <div class="loading"><div class="spinner"></div>Chargement...</div>
+                </div>
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3 class="chart-title">Flux financiers mensuels <span class="info-icon" data-tooltip="Suivi mensuel des avances, charges et primes payées aux collaborateurs.">i</span></h3>
+                    <canvas id="financialTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+            <div class="section-card" id="alerts">
+                <div class="section-header">
+                    <div class="section-title">⚠️ Alertes et recommandations</div>
+                </div>
+                <div id="alertsContainer" class="alerts-container"></div>
+            </div>
+
+        <div class="section-card" id="top-earners">
+            <div class="section-header">
+                <div class="section-title">🏆 Top salariés par service</div>
+            </div>
+            <div class="charts-section" id="topEarnersContainer"></div>
+        </div>
+
+        <div class="section-card" id="forecast">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">🔮 Prévisions paie</div>
+                    <div class="section-subtitle">Projection à 5 ans de la masse salariale nette globale et par service</div>
+                </div>
+            </div>
+            <div class="forecast-summary" id="forecastSummary">
+                <div class="loading"><div class="spinner"></div>Calcul des projections...</div>
+            </div>
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3 class="chart-title">Projection globale <span class="info-icon" data-tooltip="Historique et projection de la masse salariale nette mensuelle. Les bornes illustrent l'incertitude (±1.96σ).">i</span></h3>
+                    <canvas id="forecastGlobalChart"></canvas>
+                </div>
+            <div class="chart-container">
+                <h3 class="chart-title">Top services projetés <span class="info-icon" data-tooltip="Prévision de la masse salariale des 5 services les plus contributeurs sur les 12 derniers mois.">i</span></h3>
+                <canvas id="forecastServiceChart"></canvas>
+            </div>
+        </div>
+        <div class="forecast-model-note" id="forecastModelNote"></div>
+        <div class="forecast-highlights" id="forecastHighlights"></div>
+        <div class="forecast-comparison" id="forecastComparisonCards"></div>
+        <div class="chart-container">
+            <h3 class="chart-title">Prévision vs réalisé (12 derniers mois)</h3>
+            <canvas id="forecastComparisonChart"></canvas>
+        </div>
+        <div class="forecast-sensitivity-table" id="forecastSensitivity"></div>
+        <div class="forecast-service-table" id="forecastServiceTable"></div>
+        </div>
+
+        <div class="section-card" id="scenario">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">🧮 Planificateur de scénarios</div>
+                    <div class="section-subtitle">Simulez l'impact de mesures RH sur la masse salariale</div>
+                </div>
+            </div>
+            <div class="scenario-summary">
+                <p>
+                    Ajustez salariés, primes, effectifs ou absences et visualisez immédiatement les impacts projetés.
+                    Les résultats se basent sur les indicateurs de la période sélectionnée et appliquent les variations au total actuel.
+                </p>
+            </div>
+            <div class="scenario-grid">
+                <div class="scenario-input">
+                    <label for="scenarioSalary">Variation salaire brut (%)</label>
+                    <input class="scenario-slider" type="range" id="scenarioSalary" min="-10" max="15" value="0" step="0.5" oninput="updateScenario()">
+                    <span id="scenarioSalaryValue">0%</span>
+                </div>
+                <div class="scenario-input">
+                    <label for="scenarioBonus">Variation primes (%)</label>
+                    <input class="scenario-slider" type="range" id="scenarioBonus" min="-20" max="20" value="0" step="1" oninput="updateScenario()">
+                    <span id="scenarioBonusValue">0%</span>
+                </div>
+                <div class="scenario-input">
+                    <label for="scenarioHeadcount">Variation effectif (nb)</label>
+                    <input class="scenario-slider" type="range" id="scenarioHeadcount" min="-50" max="50" value="0" step="1" oninput="updateScenario()">
+                    <span id="scenarioHeadcountValue">0</span>
+                </div>
+                <div class="scenario-input">
+                    <label for="scenarioAbsence">Réduction absences (jours)</label>
+                    <input class="scenario-slider" type="range" id="scenarioAbsence" min="0" max="30" value="0" step="1" oninput="updateScenario()">
+                    <span id="scenarioAbsenceValue">0 j</span>
+                </div>
+            </div>
+            <div class="scenario-results" id="scenarioResults"></div>
+        </div>
+
+        <div class="section-card" id="assistant">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">🤖 Assistant RH</div>
+                    <div class="section-subtitle">Posez vos questions sur les indicateurs affichés</div>
+                </div>
+            </div>
+            <div class="chatbot-container">
+                <div class="chat-window" id="chatWindow"></div>
+                <div class="chat-input">
+                    <input type="text" id="chatMessage" placeholder="Ex: Quel est le coût moyen par employé ?" onkeydown="if(event.key==='Enter'){handleChatSend();}">
+                    <button class="btn" type="button" onclick="handleChatSend()">Envoyer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+const API_BASE_URL = '/api';
+const THEME_STORAGE_KEY = 'payrollTheme';
+let charts = {};
+let currentYear = null;
+let isDarkMode = false;
+const dashboardData = {
+    overview: null,
+    salary: null,
+    workforce: null,
+    financial: null,
+    topEarners: null,
+    forecast: null,
+};
+const chatHistory = [];
+let employeeBreakdownData = null;
+let employeeBreakdownView = 'service';
+let employeeBreakdownMonthWindow = 6;
+
+function showSection(id) {
+    document.querySelectorAll('.section-card').forEach(section => {
+        section.classList.toggle('active', section.id === id || (id === 'overview' && section.id === 'summary'));
+    });
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.toggle('active', item.getAttribute('data-target') === id);
+    });
+}
+
+function initializeTheme() {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'dark' || stored === 'light') {
+        isDarkMode = stored === 'dark';
+    } else if (window.matchMedia) {
+        isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    applyTheme();
+
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (!localStorage.getItem(THEME_STORAGE_KEY)) {
+                isDarkMode = event.matches;
+                applyTheme();
+            }
+        });
+    }
+}
+
+function toggleDarkMode() {
+    isDarkMode = !isDarkMode;
+    localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light');
+    applyTheme();
+}
+
+function applyTheme() {
+    document.body.classList.toggle('dark-mode', isDarkMode);
+    const toggleBtn = document.getElementById('themeToggle');
+    if (toggleBtn) {
+        toggleBtn.innerHTML = isDarkMode
+            ? '<i class="fas fa-sun"></i><span>Mode clair</span>'
+            : '<i class="fas fa-moon"></i><span>Mode sombre</span>';
+        toggleBtn.setAttribute('aria-pressed', isDarkMode ? 'true' : 'false');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    initializeTheme();
+    await loadAvailableYears();
+    addChatMessage('assistant', "Bonjour ! Posez-moi vos questions sur la paie, les charges ou les effectifs.");
+    await refreshAllData();
+});
+
+async function loadAvailableYears() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/years`);
+        const data = await response.json();
+        const select = document.getElementById('yearSelect');
+        select.innerHTML = '<option value="">Toutes les années</option>';
+        data.years.forEach(year => {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            if (year === data.current_year) {
+                option.selected = true;
+                currentYear = year;
+            }
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Années indisponibles', error);
+    }
+}
+
+function onYearChange() {
+    const select = document.getElementById('yearSelect');
+    currentYear = select.value ? parseInt(select.value, 10) : null;
+    refreshAllData();
+}
+
+async function refreshAllData() {
+    document.getElementById('refreshBtn').disabled = true;
+    try {
+        await Promise.all([
+            loadOverviewKPIs(),
+            loadSalaryInsights(),
+            loadWorkforceAnalytics(),
+            loadFinancialHealth(),
+            loadTopEarners(),
+            loadHistoricalTrends(),
+            loadForecast(),
+        ]);
+        generateSummaryKPIs();
+        generateAlerts();
+        updateScenario();
+    } catch (error) {
+        console.error('Erreur chargement', error);
+    } finally {
+        document.getElementById('refreshBtn').disabled = false;
+    }
+}
+
+async function loadOverviewKPIs() {
+    const url = `${API_BASE_URL}/kpis/overview${currentYear ? `?year=${currentYear}` : ''}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) {
+        document.getElementById('overviewKPIs').innerHTML = `<div class="error-message">${data.error || 'Erreur'}</div>`;
+        return;
+    }
+    dashboardData.overview = data;
+    renderOverviewKPIs(data);
+    renderOverviewTrend(data.tendance_mensuelle || []);
+    renderAverageNetCharts(data.moyennes_mensuelles || [], data.moyennes_trimestrielles || []);
+}
+
+async function loadHistoricalTrends() {
+    const response = await fetch(`${API_BASE_URL}/kpis/historical-trends`);
+    const data = await response.json();
+    if (!response.ok) return;
+    renderHistoricalTrend(data);
+}
+
+async function loadForecast() {
+    const response = await fetch(`${API_BASE_URL}/kpis/forecast`);
+    const data = await response.json();
+    if (!response.ok) {
+        dashboardData.forecast = null;
+        renderForecast({ error: data.error || 'Projection indisponible' });
+        return;
+    }
+    dashboardData.forecast = data;
+    renderForecast(data);
+}
+
+function renderOverviewKPIs(data) {
+    const container = document.getElementById('overviewKPIs');
+    const hasBrutTrend = typeof data.variation_brut_pct === 'number';
+    const hasNetTrend = typeof data.variation_net_pct === 'number';
+    const brutTrend = hasBrutTrend
+        ? `${data.variation_brut_pct > 0 ? '▲' : data.variation_brut_pct < 0 ? '▼' : '➖'} ${formatPercentValue(Math.abs(data.variation_brut_pct || 0), 2)} vs ${data.annee_courante - 1}`
+        : '—';
+    const netTrend = hasNetTrend
+        ? `${data.variation_net_pct > 0 ? '▲' : data.variation_net_pct < 0 ? '▼' : '➖'} ${formatPercentValue(Math.abs(data.variation_net_pct || 0), 2)} vs ${data.annee_courante - 1}`
+        : '—';
+
+    container.innerHTML = `
+        <div class="kpi-card with-tooltip" data-tooltip="Nombre d'employés uniques présents sur la période.">
+            <div class="kpi-header"><span class="kpi-title">Employés</span><span class="kpi-icon">👥</span></div>
+            <div class="kpi-value">${formatNumber(data.total_employes, 0)}</div>
+            <div class="kpi-trend">${formatNumber(data.nombre_services, 0)} services • ${formatNumber(data.nombre_categories, 0)} catégories</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Somme des montants bruts versés, incluant primes et charges salariales.">
+            <div class="kpi-header"><span class="kpi-title">Masse brute</span><span class="kpi-icon">💼</span></div>
+            <div class="kpi-value">${formatCurrency(data.masse_salariale_brute)}</div>
+            <div class="kpi-trend ${data.variation_brut_pct >= 0 ? 'trend-positive' : 'trend-negative'}">${brutTrend}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Montant net réellement perçu par les collaborateurs.">
+            <div class="kpi-header"><span class="kpi-title">Masse nette</span><span class="kpi-icon">💶</span></div>
+            <div class="kpi-value">${formatCurrency(data.masse_salariale_nette)}</div>
+            <div class="kpi-trend ${data.variation_net_pct >= 0 ? 'trend-positive' : 'trend-negative'}">${netTrend}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Part des primes dans la masse brute totale.">
+            <div class="kpi-header"><span class="kpi-title">Ratio primes</span><span class="kpi-icon">🎁</span></div>
+            <div class="kpi-value">${formatPercentage(data.bonus_ratio)}</div>
+            <div class="kpi-trend">Primes: ${formatCurrency(data.total_primes)}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Retenues (charges salariales, prêts, absences) rapportées au brut.">
+            <div class="kpi-header"><span class="kpi-title">Taux déductions</span><span class="kpi-icon">🧾</span></div>
+            <div class="kpi-value">${formatPercentage(data.deduction_rate)}</div>
+            <div class="kpi-trend">Charges: ${formatCurrency(data.total_charges)}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Cotisations sociales (employeur + salarié) sur la période.">
+            <div class="kpi-header"><span class="kpi-title">CNSS</span><span class="kpi-icon">🏛️</span></div>
+            <div class="kpi-value">${formatCurrency(data.total_cnss)}</div>
+            <div class="kpi-trend">${formatPercentage(data.cnss_rate)} du brut</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Impôts retenus à la source sur les rémunérations.">
+            <div class="kpi-header"><span class="kpi-title">Impôts retenus</span><span class="kpi-icon">💸</span></div>
+            <div class="kpi-value">${formatCurrency(data.total_impots)}</div>
+            <div class="kpi-trend">${formatPercentage(data.tax_rate)} du brut</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Coût moyen par collaborateur (brut et net).">
+            <div class="kpi-header"><span class="kpi-title">Coût / employé (brut)</span><span class="kpi-icon">📦</span></div>
+            <div class="kpi-value">${formatCurrency(data.cout_par_employe_brut)}</div>
+            <div class="kpi-trend">Net: ${formatCurrency(data.cout_par_employe_net)}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Jours d'absence moyens et coût associé.">
+            <div class="kpi-header"><span class="kpi-title">Absence moyenne</span><span class="kpi-icon">🕒</span></div>
+            <div class="kpi-value">${formatNumber(data.average_absence_par_employe, 2)} j</div>
+            <div class="kpi-trend">Coût estimé: ${formatCurrency(data.absence_cost_estime)}</div>
+        </div>`;
+
+    renderAnomalies(data.anomalies_mensuelles || []);
+}
+
+function renderOverviewTrend(series) {
+    const ctx = document.getElementById('overviewTrendChart').getContext('2d');
+    if (charts.overviewTrend) charts.overviewTrend.destroy();
+    if (!series.length) return;
+    charts.overviewTrend = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: series.map(item => item.label),
+            datasets: [
+                {
+                    label: 'Salaire net',
+                    data: series.map(item => item.salaire_net),
+                    borderColor: '#5b5eff',
+                    backgroundColor: '#5b5eff33',
+                    fill: true,
+                    tension: 0.4,
+                },
+                {
+                    label: 'Charges',
+                    data: series.map(item => item.charges),
+                    borderColor: '#ef4444',
+                    backgroundColor: '#ef444433',
+                    fill: true,
+                    tension: 0.4,
+                }
+            ]
+        },
+        options: getLineOptions('Montants (TND)')
+    });
+}
+
+function renderAnomalies(anomalies) {
+    const panel = document.getElementById('overviewAnomalies');
+    if (!panel) return;
+    if (!anomalies || anomalies.length === 0) {
+        panel.classList.remove('active');
+        panel.innerHTML = '';
+        return;
+    }
+    panel.classList.add('active');
+    panel.innerHTML = `
+        <h4>Anomalies détectées</h4>
+        ${anomalies.map(item => `
+            <div class="anomaly-item">
+                <span>${item.label}</span>
+                <span>${formatCurrency(item.valeur)} (${item.ecart_percent.toFixed(1)}%)</span>
+            </div>
+        `).join('')}`;
+}
+
+function renderAverageNetCharts(monthData, seasonData) {
+    const monthCanvas = document.getElementById('monthlyAverageChart');
+    const seasonCanvas = document.getElementById('seasonalAverageChart');
+
+    if (monthCanvas) {
+        const ctxMonth = monthCanvas.getContext('2d');
+        if (charts.monthlyAverage) charts.monthlyAverage.destroy();
+        if (monthData.length) {
+            charts.monthlyAverage = new Chart(ctxMonth, {
+                type: 'bar',
+                data: {
+                    labels: monthData.map(item => item.label),
+                    datasets: [{
+                        label: 'Salaire net moyen (TND)',
+                        data: monthData.map(item => item.salaire_net_moyen),
+                        backgroundColor: '#0ea5e980',
+                        borderColor: '#0ea5e9',
+                        borderWidth: 2,
+                        borderRadius: 8,
+                    }]
+                },
+                options: getBarOptions('Salaire net moyen (TND)')
+            });
+        }
+    }
+
+    if (seasonCanvas) {
+        const ctxSeason = seasonCanvas.getContext('2d');
+        if (charts.seasonalAverage) charts.seasonalAverage.destroy();
+        if (seasonData.length) {
+            charts.seasonalAverage = new Chart(ctxSeason, {
+                type: 'bar',
+                data: {
+                    labels: seasonData.map(item => item.label),
+                    datasets: [{
+                        label: 'Salaire net moyen (TND)',
+                        data: seasonData.map(item => item.salaire_net_moyen),
+                        backgroundColor: '#22d3ee80',
+                        borderColor: '#22d3ee',
+                        borderWidth: 2,
+                        borderRadius: 8,
+                    }]
+                },
+                options: getBarOptions('Salaire net moyen (TND)')
+            });
+        }
+    }
+}
+
+function renderHistoricalTrend(data) {
+    const ctx = document.getElementById('historicalTrendChart').getContext('2d');
+    if (charts.historicalTrend) charts.historicalTrend.destroy();
+    if (!data.years || !data.years.length) return;
+    charts.historicalTrend = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.years,
+            datasets: [
+                {
+                    label: 'Masse nette',
+                    data: data.masse_nette,
+                    backgroundColor: '#5b5eff80',
+                    borderColor: '#5b5eff',
+                    borderWidth: 2,
+                },
+                {
+                    label: 'Charges',
+                    data: data.charges,
+                    backgroundColor: '#f8717180',
+                    borderColor: '#f87171',
+                    borderWidth: 2,
+                }
+            ]
+        },
+        options: getBarOptions('Montants (TND)')
+    });
+}
+
+async function loadSalaryInsights() {
+    const url = `${API_BASE_URL}/kpis/salaires${currentYear ? `?year=${currentYear}` : ''}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) {
+        console.error('Analyse salariale indisponible', data.error);
+        return;
+    }
+    dashboardData.salary = data;
+    renderSalaryCharts(data);
+    renderEmployeeBreakdown(data.employee_monthly_breakdown || null);
+    renderServiceSalaries(data.salaire_par_service || {});
+    renderTopBonuses(data.top_primes || []);
+}
+
+function renderSalaryCharts(data) {
+    const ctxCat = document.getElementById('salaryCategoryChart').getContext('2d');
+    if (charts.salaryCategory) charts.salaryCategory.destroy();
+    const catEntries = Object.entries(data.salaire_par_categorie || {});
+    charts.salaryCategory = new Chart(ctxCat, {
+        type: 'bar',
+        data: {
+            labels: catEntries.map(([key]) => key),
+            datasets: [{
+                label: 'Salaire net moyen',
+                data: catEntries.map(([, value]) => value.moyenne || 0),
+                backgroundColor: '#5b5eff40',
+                borderColor: '#5b5eff',
+                borderWidth: 2,
+                borderRadius: 8,
+            }]
+        },
+        options: getBarOptions('Salaire net moyen (TND)')
+    });
+
+    const ctxDistribution = document.getElementById('salaryDistributionChart').getContext('2d');
+    if (charts.salaryDistribution) charts.salaryDistribution.destroy();
+    const distEntries = Object.entries(data.distribution_salaire || {});
+    charts.salaryDistribution = new Chart(ctxDistribution, {
+        type: 'doughnut',
+        data: {
+            labels: distEntries.map(([range]) => range + ' TND'),
+            datasets: [{
+                data: distEntries.map(([, value]) => value),
+                backgroundColor: ['#2563eb','#0891b2','#22c55e','#f97316','#ef4444','#a855f7','#eab308','#0ea5e9'],
+                borderColor: '#ffffff',
+                borderWidth: 2
+            }]
+        },
+        options: getPieOptions()
+    });
+
+    const ctxGender = document.getElementById('salaryGenderChart').getContext('2d');
+    if (charts.salaryGender) charts.salaryGender.destroy();
+    const genderEntries = Object.entries(data.ecart_par_genre || {});
+    charts.salaryGender = new Chart(ctxGender, {
+        type: 'bar',
+        data: {
+            labels: genderEntries.map(([key]) => key),
+            datasets: [{
+                label: 'Salaire net moyen',
+            data: genderEntries.map(([, value]) => value.moyenne || 0),
+            backgroundColor: '#34d39960',
+            borderColor: '#34d399',
+            borderWidth: 2,
+            borderRadius: 8,
+        }]
+    },
+        options: getBarOptions('Salaire net moyen (TND)')
+    });
+
+    const serviceAvgCanvas = document.getElementById('salaryServiceAvgChart');
+    if (serviceAvgCanvas) {
+        const ctxServiceAvg = serviceAvgCanvas.getContext('2d');
+        if (charts.salaryServiceAvg) charts.salaryServiceAvg.destroy();
+        const serviceEntries = Object.entries(data.salaire_par_service || {});
+        if (serviceEntries.length) {
+            const sortedServices = serviceEntries
+                .sort(([, a], [, b]) => (b.moyenne_nette || 0) - (a.moyenne_nette || 0))
+                .slice(0, 12);
+            const labels = sortedServices.map(([service]) => service || 'Service inconnu');
+            const averages = sortedServices.map(([, values]) => values.moyenne_nette || 0);
+            const headcounts = sortedServices.map(([, values]) => values.effectif || 0);
+            const options = getHorizontalBarOptions('Salaire net moyen (TND)');
+            options.plugins = options.plugins || {};
+            options.plugins.tooltip = {
+                callbacks: {
+                    label: context => {
+                        const value = context.parsed.x;
+                        const effectif = headcounts[context.dataIndex] || 0;
+                        return `${formatCurrency(value)} • ${formatNumber(effectif, 0)} employés`;
+                    }
+                }
+            };
+            charts.salaryServiceAvg = new Chart(ctxServiceAvg, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Salaire net moyen',
+                        data: averages,
+                        backgroundColor: '#1d4ed8aa',
+                        borderColor: '#1d4ed8',
+                        borderWidth: 1.5,
+                        borderRadius: 10,
+                    }]
+                },
+                options,
+            });
+        } else {
+            const ctx = serviceAvgCanvas.getContext('2d');
+            ctx.clearRect(0, 0, serviceAvgCanvas.width, serviceAvgCanvas.height);
+        }
+    }
+
+    renderCompensationSummary(data.compensation_summary, data.service_rankings, data.categorie_rankings);
+    renderServiceDrilldown(data);
+}
+
+function renderEmployeeBreakdown(breakdown) {
+    const container = document.getElementById('employeeBreakdownTable');
+    const tabs = document.querySelectorAll('.breakdown-tab');
+    const monthChips = document.querySelectorAll('.month-chip');
+    if (!container) return;
+
+    if (
+        !breakdown ||
+        (
+            (!Array.isArray(breakdown.per_service) || breakdown.per_service.length === 0) &&
+            (!Array.isArray(breakdown.per_categorie) || breakdown.per_categorie.length === 0)
+        )
+    ) {
+        container.innerHTML = '<div class="no-data-card">Aucune donnée mensuelle disponible pour la période sélectionnée</div>';
+        tabs.forEach(button => {
+            button.classList.remove('active');
+            button.disabled = true;
+        });
+        monthChips.forEach(chip => {
+            chip.classList.remove('active');
+            chip.disabled = true;
+        });
+        employeeBreakdownData = null;
+        return;
+    }
+
+    const hasService = Array.isArray(breakdown.per_service) && breakdown.per_service.length > 0;
+    const hasCategorie = Array.isArray(breakdown.per_categorie) && breakdown.per_categorie.length > 0;
+    if (!hasService && hasCategorie) {
+        employeeBreakdownView = 'categorie';
+    } else if (!hasCategorie && hasService) {
+        employeeBreakdownView = 'service';
+    }
+
+    employeeBreakdownData = breakdown;
+    if (Array.isArray(breakdown.months) && breakdown.months.length > 0) {
+        employeeBreakdownMonthWindow = Math.min(
+            employeeBreakdownMonthWindow || 6,
+            breakdown.months.length
+        );
+    } else {
+        employeeBreakdownMonthWindow = 6;
+    }
+
+    tabs.forEach(button => {
+        const targetView = button.dataset.breakdown || 'service';
+        button.disabled = false;
+        button.classList.toggle('active', targetView === employeeBreakdownView);
+        button.onclick = () => {
+            employeeBreakdownView = targetView;
+            tabs.forEach(tab => tab.classList.toggle('active', tab === button));
+            updateEmployeeBreakdownTable();
+        };
+    });
+
+    monthChips.forEach(chip => {
+        const monthsValue = parseInt(chip.dataset.months || '', 10);
+        chip.disabled = false;
+        const isActive = !Number.isNaN(monthsValue) && monthsValue === employeeBreakdownMonthWindow;
+        chip.classList.toggle('active', isActive);
+        chip.onclick = () => {
+            if (Number.isNaN(monthsValue)) return;
+            employeeBreakdownMonthWindow = monthsValue;
+            monthChips.forEach(other => other.classList.toggle('active', other === chip));
+            updateEmployeeBreakdownTable();
+        };
+    });
+
+    updateEmployeeBreakdownTable();
+}
+
+function getBreakdownMonths() {
+    if (!employeeBreakdownData || !Array.isArray(employeeBreakdownData.months)) {
+        return [];
+    }
+    const months = [...employeeBreakdownData.months];
+    if (!months.length) return [];
+    const windowSize = employeeBreakdownMonthWindow
+        ? Math.max(1, Math.min(employeeBreakdownMonthWindow, months.length))
+        : months.length;
+    return months.slice(months.length - windowSize);
+}
+
+function updateEmployeeBreakdownTable() {
+    const container = document.getElementById('employeeBreakdownTable');
+    if (!container) return;
+
+    if (!employeeBreakdownData) {
+        container.innerHTML = '<div class="no-data-card">Aucune donnée disponible</div>';
+        return;
+    }
+
+    const viewKey = employeeBreakdownView === 'categorie' ? 'per_categorie' : 'per_service';
+    const groups = employeeBreakdownData[viewKey] || [];
+    if (!groups.length) {
+        container.innerHTML = '<div class="no-data-card">Aucune donnée pour cette vue</div>';
+        return;
+    }
+
+    const months = getBreakdownMonths();
+   const secondaryLabel = viewKey === 'per_service' ? 'Catégorie' : 'Service';
+
+    container.innerHTML = groups
+        .map((group, index) => {
+            const groupEmployees = Array.isArray(group.employees) ? group.employees : [];
+            const groupTotal = groupEmployees.reduce((acc, emp) => acc + (emp.total || 0), 0);
+            const employeeCount = groupEmployees.length;
+            const monthsCount = months.length || (employeeBreakdownData.months ? employeeBreakdownData.months.length : 0);
+            const averageMonthly = monthsCount ? groupTotal / monthsCount : groupTotal;
+            const averagePerEmployee = employeeCount ? groupTotal / employeeCount : groupTotal;
+            const header = `
+                <div class="breakdown-group-header">
+                    <div>
+                        <div class="group-title">${group.label || 'Non renseigné'}</div>
+                        <div class="group-meta">${formatNumber(employeeCount, 0)} collaborateurs</div>
+                    </div>
+                    <div class="group-total">${formatCurrency(groupTotal)}</div>
+                </div>`;
+
+            if (!groupEmployees.length) {
+                return `<div class="breakdown-group">${header}<div class="no-data-card">Aucun collaborateur disponible</div></div>`;
+            }
+
+            const sortedEmployees = [...groupEmployees].sort((a, b) => (b.total || 0) - (a.total || 0));
+            const topEmployees = sortedEmployees.slice(0, 5);
+            const remainingCount = Math.max(sortedEmployees.length - topEmployees.length, 0);
+            const detailId = `breakdown-${viewKey}-${index}`;
+
+            const summary = `
+                <div class="group-summary">
+                    <div class="summary-item">
+                        <span>Masse nette</span>
+                        <span>${formatCurrency(groupTotal)}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>Moyenne mensuelle</span>
+                        <span>${formatCurrency(averageMonthly)}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>Net / collaborateur</span>
+                        <span>${formatCurrency(averagePerEmployee)}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>Mois couverts</span>
+                        <span>${formatNumber(monthsCount || 0, 0)}</span>
+                    </div>
+                </div>`;
+
+            const chips = `
+                <div class="employee-chip-list">
+                    ${topEmployees
+                        .map(emp => {
+                            const counterpart = viewKey === 'per_service'
+                                ? (emp.categorie || emp.label || '—')
+                                : (emp.service || emp.label || '—');
+                            return `
+                                <div class="employee-chip">
+                                    <span class="chip-name">${emp.mat_pers}</span>
+                                    <span class="chip-value">${formatCurrency(emp.total || 0)}</span>
+                                    <span class="chip-meta">${counterpart}</span>
+                                </div>`;
+                        })
+                        .join('')}
+                </div>`;
+
+            const note = remainingCount > 0
+                ? `<div class="chip-note">+ ${formatNumber(remainingCount, 0)} collaborateurs supplémentaires disponibles dans les détails.</div>`
+                : '';
+
+            const headerRow = months.length
+                ? `
+                    <tr>
+                        <th>Collaborateur</th>
+                        <th>${secondaryLabel}</th>
+                        <th>Total net</th>
+                        ${months.map(month => `<th>${month.label}</th>`).join('')}
+                    </tr>`
+                : '';
+
+            const bodyRows = sortedEmployees
+                .map(emp => {
+                    const monthly = emp.monthly || {};
+                    const monthCells = months
+                        .map(month => {
+                            if (Object.prototype.hasOwnProperty.call(monthly, month.key)) {
+                                return `<td class="numeric">${formatCurrency(monthly[month.key] || 0)}</td>`;
+                            }
+                            return '<td class="numeric muted">—</td>';
+                        })
+                        .join('');
+                    const counterpart = viewKey === 'per_service'
+                        ? (emp.categorie || emp.label || '—')
+                        : (emp.service || emp.label || '—');
+                    return `
+                        <tr>
+                            <td>${emp.mat_pers}</td>
+                            <td>${counterpart}</td>
+                            <td class="numeric highlight">${formatCurrency(emp.total || 0)}</td>
+                            ${monthCells}
+                        </tr>`;
+                })
+                .join('');
+
+            const hasDetailMonths = months.length > 0;
+            const detailsSection = hasDetailMonths
+                ? `
+                    <div class="breakdown-details" id="${detailId}">
+                        <div class="breakdown-scroll">
+                            <table class="breakdown-table-inner">
+                                <thead>${headerRow}</thead>
+                                <tbody>${bodyRows}</tbody>
+                                <caption>Données consolidées sur la période sélectionnée.</caption>
+                            </table>
+                        </div>
+                    </div>`
+                : '<div class="breakdown-details expanded"><div class="no-data-card">Aucune donnée mensuelle détaillée disponible</div></div>';
+            const toggleButton = hasDetailMonths
+                ? `<button type="button" class="toggle-details" data-target="${detailId}" aria-expanded="false">Voir détails mensuels</button>`
+                : '';
+
+            return `
+                <div class="breakdown-group">
+                    ${header}
+                    ${summary}
+                    ${chips}
+                    ${note}
+                    ${toggleButton}
+                    ${detailsSection}
+                </div>`;
+        })
+        .join('');
+
+    attachBreakdownDetailsHandlers();
+}
+
+function attachBreakdownDetailsHandlers() {
+    const toggles = document.querySelectorAll('.toggle-details');
+    toggles.forEach(button => {
+        const targetId = button.dataset.target;
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (!target) {
+            button.disabled = true;
+            return;
+        }
+        button.onclick = () => {
+            const expanded = button.getAttribute('aria-expanded') === 'true';
+            const nextState = !expanded;
+            button.setAttribute('aria-expanded', nextState.toString());
+            button.textContent = nextState ? 'Masquer les détails' : 'Voir détails mensuels';
+            target.classList.toggle('expanded', nextState);
+        };
+    });
+}
+
+function renderForecast(data) {
+    const summary = document.getElementById('forecastSummary');
+    const note = document.getElementById('forecastModelNote');
+    const table = document.getElementById('forecastServiceTable');
+    const highlightsContainer = document.getElementById('forecastHighlights');
+    const comparisonContainer = document.getElementById('forecastComparisonCards');
+    if (!summary || !note || !table || !highlightsContainer || !comparisonContainer) return;
+
+    if (!data || data.error) {
+        summary.innerHTML = `<div class="no-data-card">${data?.error || 'Projection indisponible pour le moment'}</div>`;
+        note.innerHTML = '';
+        table.innerHTML = '';
+        highlightsContainer.innerHTML = '';
+        comparisonContainer.innerHTML = '';
+        renderForecastComparisonChart([]);
+        renderForecastSensitivity(null);
+        if (charts.forecastGlobal) charts.forecastGlobal.destroy();
+        if (charts.forecastServices) charts.forecastServices.destroy();
+        return;
+    }
+
+    const global = data.global || {};
+    const model = data.model || {};
+    const services = Array.isArray(data.services) ? data.services : [];
+    const lastActual = global.last_actual || {};
+    const metrics = data.metrics || {};
+    const advancesForecast = metrics.avances?.forecast || null;
+    const primesForecast = metrics.primes?.forecast || null;
+
+    const cards = [
+        {
+            label: 'Projection 12 mois',
+            value: formatCurrency(global.next_year_sum || 0),
+            subtitle: 'Somme des prévisions sur 12 mois',
+        },
+        {
+            label: 'Projection cumulée 5 ans',
+            value: formatCurrency(global.five_year_sum || 0),
+            subtitle: 'Masse salariale nette additionnelle',
+        },
+        {
+            label: 'TCAM 5 ans',
+            value: formatPercentage(global.cagr || 0, 2),
+            subtitle: 'Taux de croissance annuel moyen',
+        },
+        {
+            label: 'Dernier mois observé',
+            value: formatCurrency(lastActual.value || 0),
+            subtitle: lastActual.date ? `Clôture ${lastActual.date}` : 'Historique limité',
+        },
+    ];
+
+    if (advancesForecast) {
+        cards.push({
+            label: 'Avances prévues (12 mois)',
+            value: formatCurrency(advancesForecast.next_year_sum || 0),
+            subtitle: 'Versements anticipés sur 12 mois',
+        });
+    }
+
+    if (primesForecast) {
+        cards.push({
+            label: 'Primes prévues (12 mois)',
+            value: formatCurrency(primesForecast.next_year_sum || 0),
+            subtitle: 'Budget primes sur 12 mois',
+        });
+    }
+
+    summary.innerHTML = cards
+        .map(card => `
+            <div class="forecast-card">
+                <span class="card-label">${card.label}</span>
+                <span class="card-value">${card.value}</span>
+                <span class="card-subtitle">${card.subtitle}</span>
+            </div>
+        `)
+        .join('');
+
+    const features = Array.isArray(model.features) ? model.features : [];
+    const assumptions = Array.isArray(model.assumptions) ? model.assumptions : [];
+    const historyMonths = model.history_months || 0;
+    const horizonYears = model.horizon_years || 5;
+    note.innerHTML = `
+        <strong>${model.name || 'Modèle de projection interne'}</strong> — ${model.description || ''}<br>
+        <span>Historique exploité&nbsp;: ${historyMonths} mois • Horizon&nbsp;: ${horizonYears} ans • MAE&nbsp;: ${formatCurrency(model.mae || 0)} • σ résiduel&nbsp;: ${formatCurrency(model.residual_std || 0)}</span>
+        ${features.length ? `<p style="margin:12px 0 4px 0;">Variables utilisées :</p><ul>${features.map(item => `<li>${item}</li>`).join('')}</ul>` : ''}
+        ${assumptions.length ? `<p style="margin:12px 0 4px 0;">Hypothèses clés :</p><ul>${assumptions.map(item => `<li>${item}</li>`).join('')}</ul>` : ''}
+    `;
+
+    const highlightCards = [];
+    const buildHighlightLines = (highlights) => {
+        if (!highlights) return [];
+        const lines = [];
+        if (highlights.top_month) {
+            lines.push(`Mois record : <strong>${highlights.top_month.label}</strong> (${formatCurrency(highlights.top_month.value)})`);
+        }
+        if (highlights.top_quarter) {
+            lines.push(`Trimestre fort : <strong>${highlights.top_quarter.label}</strong> (${formatCurrency(highlights.top_quarter.value)})`);
+        }
+        if (highlights.top_year) {
+            lines.push(`Année la plus élevée : <strong>${highlights.top_year.label}</strong> (${formatCurrency(highlights.top_year.value)})`);
+        }
+        return lines;
+    };
+
+    const avanceLines = buildHighlightLines(metrics.avances?.highlights);
+    if (avanceLines.length) {
+        highlightCards.push({
+            title: 'Saisonnalité des avances',
+            lines: avanceLines,
+        });
+    }
+
+    const primeLines = buildHighlightLines(metrics.primes?.highlights);
+    if (primeLines.length) {
+        highlightCards.push({
+            title: 'Saisonnalité des primes',
+            lines: primeLines,
+        });
+    }
+
+    const rappelLines = buildHighlightLines(metrics.rappels?.highlights);
+    if (rappelLines.length) {
+        highlightCards.push({
+            title: 'Saisonnalité des rappels',
+            lines: rappelLines,
+        });
+    }
+
+    const chargeLines = buildHighlightLines(metrics.charges?.highlights);
+    if (chargeLines.length) {
+        highlightCards.push({
+            title: 'Saisonnalité des charges sociales',
+            lines: chargeLines,
+        });
+    }
+
+    highlightsContainer.innerHTML = highlightCards.length
+        ? highlightCards
+            .map(card => `
+                <div class="forecast-highlight-card">
+                    <div class="highlight-title">${card.title}</div>
+                    ${card.lines.map(line => `<div class="highlight-line">${line}</div>`).join('')}
+                </div>
+            `)
+            .join('')
+        : '';
+
+    const comparisonItems = [
+        { key: 'net', metric: metrics.net },
+        { key: 'primes', metric: metrics.primes },
+        { key: 'avances', metric: metrics.avances },
+        { key: 'rappels', metric: metrics.rappels },
+        { key: 'charges', metric: metrics.charges },
+    ]
+        .filter(item => item.metric && item.metric.forecast)
+        .map(item => {
+            const actual = item.metric.actual_last_year_sum || 0;
+            const forecastValue = item.metric.forecast.next_year_sum;
+            const delta = (item.metric.delta_next_year !== undefined && item.metric.delta_next_year !== null)
+                ? item.metric.delta_next_year
+                : (forecastValue - actual);
+            const deltaPct = (item.metric.delta_next_year_pct !== undefined && item.metric.delta_next_year_pct !== null)
+                ? item.metric.delta_next_year_pct
+                : (actual ? delta / actual : null);
+            return {
+                label: item.metric.label || item.key,
+                actual,
+                forecast: forecastValue,
+                delta,
+                deltaPct,
+            };
+        });
+
+    comparisonContainer.innerHTML = comparisonItems.length
+        ? comparisonItems
+            .map(item => `
+                <div class="forecast-comparison-card">
+                    <div class="comparison-title">${item.label}</div>
+                    <div class="comparison-values">
+                        <div class="comparison-line">Réalisé 12 mois : <strong>${formatCurrency(item.actual)}</strong></div>
+                        <div class="comparison-line">Prévision 12 mois : <strong>${formatCurrency(item.forecast)}</strong></div>
+                        <div class="comparison-line">Écart : <strong>${formatCurrency(item.delta)}</strong>${item.deltaPct !== null ? ` (${formatPercentage(item.deltaPct)})` : ''}</div>
+                    </div>
+                </div>
+            `)
+            .join('')
+        : '';
+
+    renderForecastComparisonChart(comparisonItems);
+    renderForecastSensitivity(global);
+
+    if (!services.length) {
+        table.innerHTML = '<div class="no-data-card">Aucun service ne dispose d’un historique suffisant pour la projection.</div>';
+    } else {
+        table.innerHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Part 12 derniers mois</th>
+                        <th>Projection 12 mois</th>
+                        <th>Projection 5 ans</th>
+                        <th>TCAM</th>
+                        <th>Dernier mois</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${services
+                        .map(item => `
+                            <tr>
+                                <td>${item.service}</td>
+                                <td class="numeric">${formatPercentage(item.share || 0, 2)}</td>
+                                <td class="numeric">${formatCurrency(item.next_year_sum || 0)}</td>
+                                <td class="numeric">${formatCurrency(item.five_year_sum || 0)}</td>
+                                <td class="numeric">${formatPercentage(item.cagr || 0, 2)}</td>
+                                <td class="numeric">${formatCurrency(item.last_actual?.value || 0)}<br><span style="font-size:0.7rem;color:#64748b;">${item.last_actual?.date || ''}</span></td>
+                            </tr>
+                        `)
+                        .join('')}
+                </tbody>
+            </table>
+        `;
+    }
+
+    renderForecastGlobalChart(global);
+    renderForecastServiceChart(global, services);
+}
+
+function renderForecastGlobalChart(global) {
+    const canvas = document.getElementById('forecastGlobalChart');
+    if (!canvas) return;
+    if (charts.forecastGlobal) charts.forecastGlobal.destroy();
+
+    const history = Array.isArray(global.history) ? global.history : [];
+    const projection = Array.isArray(global.forecast) ? global.forecast : [];
+    const labels = [...history.map(item => item.date), ...projection.map(item => item.date)];
+    if (!labels.length) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+    }
+
+    const historyLength = history.length;
+    const historyData = [...history.map(item => item.value), ...projection.map(() => null)];
+    const forecastData = [...history.map(() => null), ...projection.map(item => item.value)];
+    const lowerData = [...history.map(() => null), ...projection.map(item => item.lower ?? item.value)];
+    const upperData = [...history.map(() => null), ...projection.map(item => item.upper ?? item.value)];
+
+    const ctx = canvas.getContext('2d');
+    charts.forecastGlobal = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Historique',
+                    data: historyData,
+                    borderColor: '#1d4ed8',
+                    backgroundColor: '#1d4ed833',
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 2,
+                },
+                {
+                    label: 'Prévision',
+                    data: forecastData,
+                    borderColor: '#22c55e',
+                    backgroundColor: '#22c55e26',
+                    borderDash: [6, 4],
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 2,
+                },
+                {
+                    label: 'Intervalle inférieur',
+                    data: lowerData,
+                    borderColor: 'rgba(34, 197, 94, 0)',
+                    backgroundColor: 'rgba(34, 197, 94, 0)',
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 0,
+                    fill: false,
+                },
+                {
+                    label: 'Intervalle de confiance',
+                    data: upperData,
+                    borderColor: 'rgba(34, 197, 94, 0)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.18)',
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 0,
+                    fill: '-1',
+                },
+            ],
+        },
+        options: {
+            ...getLineOptions('Montants (TND)'),
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            const value = context.parsed.y;
+                            if (value === null || Number.isNaN(value)) return '';
+                            if (context.datasetIndex === 1) {
+                                const idx = context.dataIndex - historyLength;
+                                if (idx >= 0 && projection[idx]) {
+                                    const item = projection[idx];
+                                    const delta = (item.upper ?? item.value) - item.value;
+                                    return `Prévision: ${formatCurrency(item.value)} (± ${formatCurrency(Math.abs(delta))})`;
+                                }
+                            }
+                            return `${context.dataset.label}: ${formatCurrency(value)}`;
+                        },
+                    },
+                },
+            },
+            spanGaps: false,
+        },
+    });
+}
+
+function renderForecastServiceChart(global, services) {
+    const canvas = document.getElementById('forecastServiceChart');
+    if (!canvas) return;
+    if (charts.forecastServices) charts.forecastServices.destroy();
+
+    const projection = Array.isArray(global.forecast) ? global.forecast : [];
+    const labels = projection.slice(0, 24).map(item => item.date);
+    if (!labels.length || !services.length) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+    }
+
+    const palette = [
+        { border: '#0ea5e9', background: 'rgba(14, 165, 233, 0.25)' },
+        { border: '#ec4899', background: 'rgba(236, 72, 153, 0.25)' },
+        { border: '#10b981', background: 'rgba(16, 185, 129, 0.25)' },
+        { border: '#f97316', background: 'rgba(249, 115, 22, 0.25)' },
+        { border: '#a855f7', background: 'rgba(168, 85, 247, 0.25)' },
+    ];
+
+    const datasets = services.slice(0, 5).map((service, index) => {
+        const color = palette[index % palette.length];
+        const valueMap = new Map();
+        (service.forecast || []).forEach(item => {
+            valueMap.set(item.date, item.value);
+        });
+        const data = labels.map(label => (valueMap.has(label) ? valueMap.get(label) : null));
+        return {
+            label: service.service || `Service ${index + 1}`,
+            data,
+            borderColor: color.border,
+            backgroundColor: color.background,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+            spanGaps: false,
+        };
+    });
+
+    const ctx = canvas.getContext('2d');
+    charts.forecastServices = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets,
+        },
+        options: {
+            ...getLineOptions('Montants (TND)'),
+            plugins: {
+                legend: { position: 'top' },
+            },
+            spanGaps: false,
+        },
+    });
+}
+
+function renderForecastComparisonChart(items) {
+    const canvas = document.getElementById('forecastComparisonChart');
+    if (!canvas) return;
+    if (charts.forecastComparison) charts.forecastComparison.destroy();
+
+    if (!items || !items.length) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+    }
+
+    const labels = items.map(item => item.label);
+    const actualData = items.map(item => item.actual || 0);
+    const forecastData = items.map(item => item.forecast || 0);
+
+    const ctx = canvas.getContext('2d');
+    charts.forecastComparison = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Réalisé 12 mois',
+                    data: actualData,
+                    backgroundColor: '#0ea5e9a0',
+                    borderColor: '#0ea5e9',
+                    borderWidth: 1.5,
+                },
+                {
+                    label: 'Prévision 12 mois',
+                    data: forecastData,
+                    backgroundColor: '#22c55ea0',
+                    borderColor: '#22c55e',
+                    borderWidth: 1.5,
+                },
+            ],
+        },
+        options: getBarOptions('Montants (TND)'),
+    });
+}
+
+function renderForecastSensitivity(global) {
+    const container = document.getElementById('forecastSensitivity');
+    if (!container) return;
+    if (!global || !global.sensitivity) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const nextYear = global.sensitivity.next_year || {};
+    const fiveYear = global.sensitivity.five_year || {};
+
+    container.innerHTML = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Horizon</th>
+                    <th>Scénario pessimiste</th>
+                    <th>Scénario central</th>
+                    <th>Scénario optimiste</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>12 mois</td>
+                    <td>${formatCurrency(nextYear.lower || 0)}</td>
+                    <td>${formatCurrency(nextYear.baseline || 0)}</td>
+                    <td>${formatCurrency(nextYear.upper || 0)}</td>
+                </tr>
+                <tr>
+                    <td>5 ans</td>
+                    <td>${formatCurrency(fiveYear.lower || 0)}</td>
+                    <td>${formatCurrency(fiveYear.baseline || 0)}</td>
+                    <td>${formatCurrency(fiveYear.upper || 0)}</td>
+                </tr>
+            </tbody>
+        </table>`;
+}
+
+function renderCompensationSummary(summary, serviceRanks = [], categoryRanks = []) {
+    const summaryContainer = document.getElementById('compensationSummary');
+    if (!summaryContainer) return;
+    if (!summary) {
+        summaryContainer.innerHTML = '<div class="no-data-card">Aucune donnée disponible</div>';
+    } else {
+        const pills = [
+            { label: 'Total brut', value: formatCurrency(summary.total_brut) },
+            { label: 'Total net', value: formatCurrency(summary.total_net) },
+            { label: 'Ratio primes', value: formatPercentage(summary.bonus_ratio) },
+            { label: 'Taux déductions', value: formatPercentage(summary.deduction_rate) },
+            { label: 'Net / Brut', value: formatPercentage(summary.gross_to_net_ratio) },
+            { label: 'Rappels', value: formatCurrency(summary.total_rappels) }
+        ];
+        summaryContainer.innerHTML = pills
+            .map(pill => `
+                <div class="summary-pill">
+                    <span class="pill-label">${pill.label}</span>
+                    <span class="pill-value">${pill.value}</span>
+                </div>
+            `)
+            .join('');
+    }
+
+    const serviceList = document.getElementById('serviceRankingList');
+    renderRankingList(serviceList, serviceRanks, {
+        labelKey: 'service',
+        secondary: item => `${formatCurrency(item.masse)} • ${formatNumber(item.effectif, 0)} employés`,
+        value: item => formatCurrency(item.salaire_moyen)
+    });
+
+    const categoryList = document.getElementById('categoryRankingList');
+    renderRankingList(categoryList, categoryRanks, {
+        labelKey: 'categorie',
+        secondary: item => `${formatNumber(item.effectif, 0)} employés`,
+        value: item => formatCurrency(item.salaire_moyen)
+    });
+}
+
+function renderServiceDrilldown(data) {
+    const select = document.getElementById('serviceDrilldownSelect');
+    const cardsContainer = document.getElementById('serviceDrilldownCards');
+    if (!select || !cardsContainer) return;
+
+    const services = data.salaire_par_service || {};
+    const entries = Object.entries(services);
+    if (!entries.length) {
+        select.innerHTML = '<option value="">Aucun service disponible</option>';
+        cardsContainer.innerHTML = '<div class="no-data-card">Aucune donnée</div>';
+        return;
+    }
+
+    select.innerHTML = entries
+        .map(([service]) => `<option value="${service}">${service}</option>`)
+        .join('');
+
+    const updateCards = (service) => {
+        const values = services[service];
+        if (!values) {
+            cardsContainer.innerHTML = '<div class="no-data-card">Sélectionnez un service</div>';
+            return;
+        }
+        cardsContainer.innerHTML = `
+            <div class="drilldown-card with-tooltip" data-tooltip="Salaire net moyen des collaborateurs du service.">
+                <div class="label">Salaire net moyen</div>
+                <div class="value">${formatCurrency(values.moyenne_nette || 0)}</div>
+            </div>
+            <div class="drilldown-card with-tooltip" data-tooltip="Salaire brut moyen des collaborateurs du service.">
+                <div class="label">Salaire brut moyen</div>
+                <div class="value">${formatCurrency(values.moyenne_brute || 0)}</div>
+            </div>
+            <div class="drilldown-card with-tooltip" data-tooltip="Masse salariale nette cumulée du service.">
+                <div class="label">Masse salariale nette</div>
+                <div class="value">${formatCurrency(values.masse_salariale || 0)}</div>
+            </div>
+            <div class="drilldown-card with-tooltip" data-tooltip="Total des primes versées sur le service.">
+                <div class="label">Primes totales</div>
+                <div class="value">${formatCurrency(values.total_primes || 0)}</div>
+            </div>
+            <div class="drilldown-card with-tooltip" data-tooltip="Effectif distinct du service.">
+                <div class="label">Effectif</div>
+                <div class="value">${formatNumber(values.effectif || 0, 0)}</div>
+            </div>`;
+    };
+
+    select.onchange = (event) => updateCards(event.target.value);
+    select.value = entries[0][0];
+    updateCards(entries[0][0]);
+}
+
+function renderRankingList(container, data, options) {
+    if (!container) return;
+    if (!Array.isArray(data) || data.length === 0) {
+        container.innerHTML = '<div class="no-data-card">Aucune donnée disponible</div>';
+        return;
+    }
+
+    container.innerHTML = data
+        .map((item, index) => `
+            <div class="ranking-item">
+                <div class="ranking-index">#${index + 1}</div>
+                <div class="ranking-details">
+                    <div class="ranking-label">${item[options.labelKey] || 'Non renseigné'}</div>
+                    <div class="ranking-meta">${options.secondary(item)}</div>
+                </div>
+                <div class="ranking-value">${options.value(item)}</div>
+            </div>
+        `)
+        .join('');
+}
+
+function renderServiceSalaries(data) {
+    const container = document.getElementById('serviceSalariesContainer');
+    const entries = Object.entries(data || {});
+    if (!entries.length) {
+        container.innerHTML = '<div class="no-data-card">Aucune donnée de service pour la période sélectionnée</div>';
+        return;
+    }
+
+    const sorted = entries
+        .sort(([, a], [, b]) => (b.masse_salariale || 0) - (a.masse_salariale || 0))
+        .slice(0, 12);
+
+    const maxMasse = sorted.reduce((acc, [, values]) => Math.max(acc, values.masse_salariale || 0), 0) || 1;
+    const icons = ['🏢', '🛎️', '🍽️', '🧹', '🧾', '🛠️', '🧑‍🍳', '🧳', '🎯', '⚙️', '📦', '🧬'];
+
+    const cards = sorted.map(([service, values], index) => {
+        const masseShare = Math.min(100, Math.round(((values.masse_salariale || 0) / maxMasse) * 100));
+        return `
+            <div class="service-salary-card">
+                <div class="service-card-header">
+                    <div class="service-icon" aria-hidden="true">${icons[index % icons.length]}</div>
+                    <div class="service-header-text">
+                        <div class="service-name" title="${service}">${service}</div>
+                        <div class="service-subtitle">${formatNumber(values.effectif || 0, 0)} employés • Primes ${formatCurrency(values.total_primes || 0)}</div>
+                    </div>
+                    <div class="service-badge">Top ${index + 1}</div>
+                </div>
+                <div class="service-metric-large">${formatCurrency(values.masse_salariale || 0)}</div>
+                <div class="service-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${masseShare}">
+                    <div class="service-progress-bar" style="width: ${masseShare}%"></div>
+                </div>
+                <div class="service-metric-row">
+                    <div class="metric">
+                        <span>Net moyen</span>
+                        <strong>${formatCurrency(values.moyenne_nette || 0)}</strong>
+                    </div>
+                    <div class="metric">
+                        <span>Brut moyen</span>
+                        <strong>${formatCurrency(values.moyenne_brute || 0)}</strong>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+
+    container.innerHTML = `<div class="service-salaries-grid">${cards}</div>`;
+}
+
+function renderTopBonuses(primes) {
+    const container = document.getElementById('topBonusesContainer');
+    if (!primes.length) {
+        container.innerHTML = '<div class="no-data-card">Aucune prime enregistrée</div>';
+        return;
+    }
+
+    const topPrimes = primes.slice(0, 8);
+    container.innerHTML = `
+        <div class="bonus-grid">
+            ${topPrimes.map((item, index) => `
+                <div class="bonus-card">
+                    <div class="bonus-rank">#${index + 1}</div>
+                    <div class="bonus-info">
+                        <div class="bonus-employee">${item.mat_pers}</div>
+                        <div class="bonus-service">${item.service}</div>
+                    </div>
+                    <div class="bonus-amount">${formatCurrency(item.montant)}</div>
+                </div>
+            `).join('')}
+        </div>`;
+}
+
+async function loadWorkforceAnalytics() {
+    const url = `${API_BASE_URL}/kpis/workforce-analytics${currentYear ? `?year=${currentYear}` : ''}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) {
+        console.error('Effectifs indisponibles', data.error);
+        return;
+    }
+    dashboardData.workforce = data;
+    renderWorkforceKPIs(data);
+    renderWorkforceCharts(data);
+    renderHeadcountLists(data);
+}
+
+function renderWorkforceKPIs(data) {
+    const container = document.getElementById('workforceKPIs');
+    container.innerHTML = `
+        <div class="kpi-card">
+            <div class="kpi-header"><span class="kpi-title">Effectif total</span><span class="kpi-icon">👥</span></div>
+            <div class="kpi-value">${formatNumber(data.effectif_total, 0)}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header"><span class="kpi-title">Âge moyen</span><span class="kpi-icon">🎂</span></div>
+            <div class="kpi-value">${formatNumber(data.age_moyen)} ans</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header"><span class="kpi-title">Ancienneté moyenne</span><span class="kpi-icon">⏳</span></div>
+            <div class="kpi-value">${formatNumber(data.anciennete_moyenne)} ans</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header"><span class="kpi-title">Enfants à charge</span><span class="kpi-icon">👶</span></div>
+            <div class="kpi-value">${formatNumber(data.nombre_enfants_total, 0)}</div>
+        </div>`;
+}
+
+function renderHeadcountLists(data) {
+    const serviceList = document.getElementById('serviceHeadcountList');
+    const categoryList = document.getElementById('categoryHeadcountList');
+
+    if (serviceList) {
+        const services = data.effectifs_par_service || {};
+        serviceList.innerHTML = Object.entries(services)
+            .map(([name, count]) => `
+                <div class="headcount-item">
+                    <span>${name}</span>
+                    <strong>${formatNumber(count, 0)}</strong>
+                </div>
+            `)
+            .join('');
+        if (!serviceList.innerHTML) {
+            serviceList.innerHTML = '<div class="no-data-card">Aucune donnée</div>';
+        }
+    }
+
+    if (categoryList) {
+        const categories = data.effectifs_par_categorie || {};
+        categoryList.innerHTML = Object.entries(categories)
+            .map(([name, count]) => `
+                <div class="headcount-item">
+                    <span>${name}</span>
+                    <strong>${formatNumber(count, 0)}</strong>
+                </div>
+            `)
+            .join('');
+        if (!categoryList.innerHTML) {
+            categoryList.innerHTML = '<div class="no-data-card">Aucune donnée</div>';
+        }
+    }
+}
+
+function renderWorkforceCharts(data) {
+    const ageData = data.analyse_demographique?.repartition_age || {};
+    const ctxAge = document.getElementById('workforceAgeChart').getContext('2d');
+    if (charts.workforceAge) charts.workforceAge.destroy();
+    charts.workforceAge = new Chart(ctxAge, {
+        type: 'pie',
+        data: {
+            labels: Object.keys(ageData),
+            datasets: [{
+                data: Object.values(ageData),
+                backgroundColor: ['#f472b6','#fb7185','#f97316','#facc15','#22c55e','#0ea5e9'],
+                borderWidth: 1
+            }]
+        },
+        options: getPieOptions()
+    });
+
+    const tenureData = data.analyse_demographique?.repartition_anciennete || {};
+    const ctxTenure = document.getElementById('workforceTenureChart').getContext('2d');
+    if (charts.workforceTenure) charts.workforceTenure.destroy();
+    charts.workforceTenure = new Chart(ctxTenure, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(tenureData),
+            datasets: [{
+                label: 'Employés',
+                data: Object.values(tenureData),
+                backgroundColor: '#f59e0b60',
+                borderColor: '#f59e0b',
+                borderWidth: 2,
+                borderRadius: 8,
+            }]
+        },
+        options: getBarOptions('Nombre d\'employés')
+    });
+
+    const serviceData = data.effectifs_par_service || {};
+    const ctxService = document.getElementById('workforceServiceChart').getContext('2d');
+    if (charts.workforceService) charts.workforceService.destroy();
+    charts.workforceService = new Chart(ctxService, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(serviceData),
+            datasets: [{
+                label: 'Effectif',
+                data: Object.values(serviceData),
+                backgroundColor: '#38bdf860',
+                borderColor: '#38bdf8',
+                borderWidth: 2,
+                borderRadius: 8,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            ...getBarOptions('Nombre d\'employés')
+        }
+    });
+}
+
+async function loadFinancialHealth() {
+    const url = `${API_BASE_URL}/kpis/financial-health${currentYear ? `?year=${currentYear}` : ''}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) {
+        document.getElementById('financialKPIs').innerHTML = `<div class="error-message">${data.error || 'Erreur'}</div>`;
+        return;
+    }
+    dashboardData.financial = data;
+    renderFinancialKPIs(data);
+    renderFinancialTrend(data.tendance_mensuelle || []);
+}
+
+function renderFinancialKPIs(data) {
+    const container = document.getElementById('financialKPIs');
+    container.innerHTML = `
+        <div class="kpi-card with-tooltip" data-tooltip="Score composite basé sur les avances, charges et primes.">
+            <div class="kpi-header"><span class="kpi-title">Score santé</span><span class="kpi-icon">💊</span></div>
+            <div class="kpi-value">${formatNumber(data.score_sante_financiere, 0)}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Montant total des avances accordées et part des salariés concernés.">
+            <div class="kpi-header"><span class="kpi-title">Avances</span><span class="kpi-icon">💳</span></div>
+            <div class="kpi-value">${formatCurrency(data.indicateurs_avances.montant_total)}</div>
+            <div class="kpi-trend">${data.indicateurs_avances.pourcentage}% des employés</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Total des charges sociales (CNSS, impôts, assurance) rapporté au brut.">
+            <div class="kpi-header"><span class="kpi-title">Charges</span><span class="kpi-icon">🏛️</span></div>
+            <div class="kpi-value">${formatCurrency(data.indicateurs_charges.montant_total)}</div>
+            <div class="kpi-trend">${data.indicateurs_charges.ratio_brut}% du brut</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Somme des primes distribuées et pourcentage de salariés concernés.">
+            <div class="kpi-header"><span class="kpi-title">Primes</span><span class="kpi-icon">🎁</span></div>
+            <div class="kpi-value">${formatCurrency(data.indicateurs_primes.montant_total)}</div>
+            <div class="kpi-trend">${data.indicateurs_primes.pourcentage}% des employés</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Cotisations CNSS prélevées sur la masse salariale.">
+            <div class="kpi-header"><span class="kpi-title">CNSS</span><span class="kpi-icon">🧾</span></div>
+            <div class="kpi-value">${formatCurrency(data.indicateurs_charges.total_cnss)}</div>
+            <div class="kpi-trend">${formatPercentValue(data.indicateurs_charges.taux_cnss, 2)} du brut</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Montant des impôts prélevés à la source sur les salaires.">
+            <div class="kpi-header"><span class="kpi-title">Impôts</span><span class="kpi-icon">💸</span></div>
+            <div class="kpi-value">${formatCurrency(data.indicateurs_charges.total_impots)}</div>
+            <div class="kpi-trend">${formatPercentValue(data.indicateurs_charges.taux_impots, 2)} du brut</div>
+        </div>`;
+}
+
+function renderFinancialTrend(series) {
+    const ctx = document.getElementById('financialTrendChart').getContext('2d');
+    if (charts.financialTrend) charts.financialTrend.destroy();
+    if (!series.length) return;
+    charts.financialTrend = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: series.map(item => item.label),
+            datasets: [
+                {
+                    label: 'Avances',
+                    data: series.map(item => item.avances),
+                    borderColor: '#f97316',
+                    backgroundColor: '#f9731633',
+                    fill: true,
+                    tension: 0.4,
+                },
+                {
+                    label: 'Primes',
+                    data: series.map(item => item.primes),
+                    borderColor: '#10b981',
+                    backgroundColor: '#10b98133',
+                    fill: true,
+                    tension: 0.4,
+                },
+                {
+                    label: 'Charges',
+                    data: series.map(item => item.charges),
+                    borderColor: '#ef4444',
+                    backgroundColor: '#ef444433',
+                    fill: true,
+                    tension: 0.4,
+                }
+            ]
+        },
+        options: getLineOptions('Montants (TND)')
+    });
+}
+
+async function loadTopEarners() {
+    const url = `${API_BASE_URL}/kpis/top-earners${currentYear ? `?year=${currentYear}` : ''}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) {
+        document.getElementById('topEarnersContainer').innerHTML = `<div class="error-message">${data.error || 'Erreur'}</div>`;
+        return;
+    }
+    dashboardData.topEarners = data.top_earners_by_service || {};
+    renderTopEarners(dashboardData.topEarners);
+}
+
+function renderTopEarners(data) {
+    const container = document.getElementById('topEarnersContainer');
+    if (!Object.keys(data).length) {
+        container.innerHTML = '<div class="no-data">Aucune donnée</div>';
+        return;
+    }
+    container.innerHTML = '';
+    Object.entries(data).forEach(([service, employees], index) => {
+        const canvasId = `topEarnersChart_${index}`;
+        const chartWrapper = document.createElement('div');
+        chartWrapper.className = 'chart-container';
+        chartWrapper.innerHTML = `<h3 class="chart-title">${service}</h3><canvas id="${canvasId}"></canvas>`;
+        container.appendChild(chartWrapper);
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        charts[canvasId] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: employees.map(emp => emp.mat_pers),
+                datasets: [{
+                    label: 'Salaire net cumulé',
+                    data: employees.map(emp => emp.montant),
+                    backgroundColor: '#818cf880',
+                    borderColor: '#818cf8',
+                    borderWidth: 2,
+                    borderRadius: 8,
+                }]
+            },
+            options: getBarOptions('Salaire net (TND)')
+        });
+    });
+}
+
+function generateSummaryKPIs() {
+    const container = document.getElementById('summaryKPIs');
+    if (!dashboardData.overview || !dashboardData.financial || !dashboardData.salary) {
+        container.innerHTML = '<div class="loading"><div class="spinner"></div>Chargement...</div>';
+        return;
+    }
+    container.innerHTML = `
+        <div class="kpi-card with-tooltip" data-tooltip="Année de référence actuellement sélectionnée.">
+            <div class="kpi-header"><span class="kpi-title">Année</span><span class="kpi-icon">📅</span></div>
+            <div class="kpi-value">${dashboardData.overview.annee_courante}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Salaire net mensuel moyen, ajusté selon le nombre de mois rémunérés par collaborateur.">
+            <div class="kpi-header"><span class="kpi-title">Salaire net moyen</span><span class="kpi-icon">💰</span></div>
+            <div class="kpi-value">${formatCurrency(dashboardData.overview.salaire_net_moyen)}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Part des primes dans la masse salariale brute.">
+            <div class="kpi-header"><span class="kpi-title">Ratio primes</span><span class="kpi-icon">🎁</span></div>
+            <div class="kpi-value">${formatPercentage(dashboardData.overview.bonus_ratio)}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Retenues totales (charges, avances, prêts) rapportées au brut.">
+            <div class="kpi-header"><span class="kpi-title">Taux déductions</span><span class="kpi-icon">🧾</span></div>
+            <div class="kpi-value">${formatPercentage(dashboardData.overview.deduction_rate)}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Montant des cotisations sociales (CNSS).">
+            <div class="kpi-header"><span class="kpi-title">CNSS</span><span class="kpi-icon">🏛️</span></div>
+            <div class="kpi-value">${formatCurrency(dashboardData.overview.total_cnss)}</div>
+            <div class="kpi-trend">${formatPercentage(dashboardData.overview.cnss_rate)} du brut</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Montant des impôts retenus à la source.">
+            <div class="kpi-header"><span class="kpi-title">Impôts</span><span class="kpi-icon">💸</span></div>
+            <div class="kpi-value">${formatCurrency(dashboardData.overview.total_impots)}</div>
+            <div class="kpi-trend">${formatPercentage(dashboardData.overview.tax_rate)} du brut</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Score composite de santé financière RH.">
+            <div class="kpi-header"><span class="kpi-title">Score santé</span><span class="kpi-icon">💊</span></div>
+            <div class="kpi-value">${formatNumber(dashboardData.financial.score_sante_financiere, 0)}</div>
+        </div>
+        <div class="kpi-card with-tooltip" data-tooltip="Montant de la plus forte prime individuelle identifiée.">
+            <div class="kpi-header"><span class="kpi-title">Top prime</span><span class="kpi-icon">⭐</span></div>
+            <div class="kpi-value">${formatCurrency((dashboardData.salary.top_primes || [])[0]?.montant || 0)}</div>
+        </div>`;
+}
+
+function generateAlerts() {
+    const alerts = [];
+    const container = document.getElementById('alertsContainer');
+
+    const overview = dashboardData.overview;
+    const financial = dashboardData.financial;
+    const salary = dashboardData.salary;
+
+    if (!overview || !financial) {
+        container.innerHTML = '<div class="no-data">Chargement des alertes...</div>';
+        return;
+    }
+
+    if (financial.indicateurs_avances.pourcentage > 25) {
+        alerts.push({
+            type: 'warning',
+            icon: '💳',
+            title: 'Avances élevées',
+            message: `${financial.indicateurs_avances.pourcentage}% des employés recourent aux avances.`,
+            tooltip: 'Alerte déclenchée lorsque plus de 25% des collaborateurs ont une avance en cours.'
+        });
+    }
+
+    if (financial.indicateurs_charges.ratio_brut > 35) {
+        alerts.push({
+            type: 'danger',
+            icon: '🏛️',
+            title: 'Charges élevées',
+            message: `Les charges représentent ${financial.indicateurs_charges.ratio_brut}% de la masse brute.`,
+            tooltip: 'Déclenchée lorsque les charges sociales dépassent 35% de la masse salariale brute.'
+        });
+    }
+
+    if ((overview.deduction_rate || 0) > 0.35) {
+        alerts.push({
+            type: 'warning',
+            icon: '🧾',
+            title: 'Taux de déductions élevé',
+            message: `Les déductions représentent ${formatPercentage(overview.deduction_rate)} de la masse brute.`,
+            tooltip: 'Le taux de déductions (retenues, avances, prêts) dépasse 35% du total brut.'
+        });
+    }
+
+    if ((overview.anomalies_mensuelles || []).length > 0) {
+        const description = overview.anomalies_mensuelles
+            .map(item => `${item.label} (+${item.ecart_percent.toFixed(1)}%)`)
+            .join(', ');
+        alerts.push({
+            type: 'warning',
+            icon: '📈',
+            title: 'Anomalies de paie détectées',
+            message: `Surveillez les mois suivants : ${description}.`,
+            tooltip: 'Les mois listés dépassent de plus de 2 écarts-types la moyenne mensuelle nette.'
+        });
+    }
+
+    const gender = salary?.ecart_par_genre || {};
+    if (Object.keys(gender).length >= 2) {
+        const values = Object.values(gender).map(item => item.moyenne);
+        const max = Math.max(...values);
+        const min = Math.min(...values);
+        const gap = ((max - min) / max) * 100;
+        if (gap > 10) {
+            alerts.push({
+                type: 'warning',
+                icon: '⚖️',
+                title: 'Écart salarial',
+                message: `Écart moyen de ${gap.toFixed(1)}% entre les genres.`,
+                tooltip: 'Alerte générée lorsque l’écart de salaire net moyen entre genres dépasse 10%.'
+            });
+        }
+    }
+
+    if (!alerts.length) {
+        alerts.push({
+            type: 'success',
+            icon: '✅',
+            title: 'Situation saine',
+            message: 'Aucune alerte majeure détectée sur la période.',
+            tooltip: 'Aucune des règles de seuil (avances, charges, anomalies, etc.) n’a été déclenchée.'
+        });
+    }
+
+    container.innerHTML = alerts.map(alert => `
+        <div class="alert alert-${alert.type} with-tooltip" data-tooltip="${alert.tooltip || 'Information sur l’alerte en cours.'}">
+            <div class="alert-icon">${alert.icon}</div>
+            <div class="alert-content">
+                <div class="alert-title">${alert.title}</div>
+                <div class="alert-message">${alert.message}</div>
+            </div>
+        </div>`).join('');
+}
+
+function updateScenario() {
+    const overview = dashboardData.overview;
+    const resultsContainer = document.getElementById('scenarioResults');
+    if (!resultsContainer) return;
+    if (!overview || overview.total_employes === 0) {
+        resultsContainer.innerHTML = '<div class="no-data-card">Données insuffisantes pour la simulation</div>';
+        return;
+    }
+
+    const salarySlider = document.getElementById('scenarioSalary');
+    const bonusSlider = document.getElementById('scenarioBonus');
+    const headcountSlider = document.getElementById('scenarioHeadcount');
+    const absenceSlider = document.getElementById('scenarioAbsence');
+
+    const salaryPct = parseFloat(salarySlider?.value || '0');
+    const bonusPct = parseFloat(bonusSlider?.value || '0');
+    const headcountDelta = parseFloat(headcountSlider?.value || '0');
+    const absenceReduction = parseFloat(absenceSlider?.value || '0');
+
+    document.getElementById('scenarioSalaryValue').textContent = `${salaryPct}%`;
+    document.getElementById('scenarioBonusValue').textContent = `${bonusPct}%`;
+    document.getElementById('scenarioHeadcountValue').textContent = `${headcountDelta}`;
+    document.getElementById('scenarioAbsenceValue').textContent = `${absenceReduction} j`;
+
+    const baseGross = overview.masse_salariale_brute || 0;
+    const baseNet = overview.masse_salariale_nette || 0;
+    const baseBonus = overview.total_primes || 0;
+    const baseCharges = overview.total_charges || 0;
+    const baseAbsenceCost = overview.absence_cost_estime || 0;
+    const baseAbsenceDays = overview.total_absence_jours || 0;
+    const headcount = overview.total_employes || 1;
+
+    const adjustedHeadcount = Math.max(headcount + headcountDelta, 0.1);
+    const headcountFactor = headcount ? adjustedHeadcount / headcount : 1;
+
+    const gross = baseGross * (1 + salaryPct / 100) * headcountFactor;
+    const bonus = baseBonus * (1 + bonusPct / 100) * headcountFactor;
+    const charges = baseCharges * (1 + salaryPct / 100) * headcountFactor;
+    const net = baseGross > 0 ? baseNet * (gross / baseGross) : baseNet;
+
+    let newAbsenceDays = Math.max(baseAbsenceDays - absenceReduction, 0);
+    let absenceCost = baseAbsenceDays > 0 ? baseAbsenceCost * (newAbsenceDays / baseAbsenceDays) : baseAbsenceCost;
+
+    const deltaGross = gross - baseGross;
+    const deltaNet = net - baseNet;
+
+    resultsContainer.innerHTML = `
+        <div class="scenario-card with-tooltip" data-tooltip="Projection de la masse salariale brute après ajustements.">
+            <div class="label">Masse brute projetée</div>
+            <div class="value">${formatCurrency(gross)}</div>
+            <small>${deltaGross >= 0 ? '▲' : '▼'} ${formatCurrency(Math.abs(deltaGross))} vs actuel</small>
+        </div>
+        <div class="scenario-card with-tooltip" data-tooltip="Projection du net global après scénarios.">
+            <div class="label">Masse nette projetée</div>
+            <div class="value">${formatCurrency(net)}</div>
+            <small>${deltaNet >= 0 ? '▲' : '▼'} ${formatCurrency(Math.abs(deltaNet))} vs actuel</small>
+        </div>
+        <div class="scenario-card with-tooltip" data-tooltip="Total des primes recalculé avec la variation choisie.">
+            <div class="label">Primes estimées</div>
+            <div class="value">${formatCurrency(bonus)}</div>
+        </div>
+        <div class="scenario-card with-tooltip" data-tooltip="Charges sociales projetées avec le scénario.">
+            <div class="label">Charges estimées</div>
+            <div class="value">${formatCurrency(charges)}</div>
+        </div>
+        <div class="scenario-card with-tooltip" data-tooltip="Jours et coût d'absence recalculés après réduction.">
+            <div class="label">Absence estimée</div>
+            <div class="value">${formatNumber(newAbsenceDays, 1)} j • ${formatCurrency(absenceCost)}</div>
+        </div>`;
+}
+
+function handleChatSend() {
+    const input = document.getElementById('chatMessage');
+    const message = (input?.value || '').trim();
+    if (!message) return;
+    addChatMessage('user', message);
+    input.value = '';
+    const reply = buildChatResponse(message.toLowerCase());
+    setTimeout(() => addChatMessage('assistant', reply), 150);
+}
+
+function addChatMessage(speaker, text) {
+    const chatWindow = document.getElementById('chatWindow');
+    if (!chatWindow) return;
+    chatHistory.push({ speaker, text, timestamp: new Date() });
+    const div = document.createElement('div');
+    div.className = `chat-message ${speaker === 'user' ? 'user' : 'bot'}`;
+    div.innerHTML = `
+        <span class="speaker">${speaker === 'user' ? 'Vous' : 'Assistant'}</span>
+        <span class="text">${text}</span>
+    `;
+    chatWindow.appendChild(div);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function buildChatResponse(message) {
+    const overview = dashboardData.overview || {};
+    const salary = dashboardData.salary || {};
+    const financial = dashboardData.financial || {};
+    const workforce = dashboardData.workforce || {};
+
+    const normalized = message.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    const contains = (...keywords) =>
+        keywords.some(keyword => message.includes(keyword) || normalized.includes(keyword));
+
+    if (contains('masse', 'payroll', 'brute', 'net')) {
+        return `La masse salariale brute actuelle est de ${formatCurrency(overview.masse_salariale_brute)} pour ${formatNumber(overview.total_employes, 0)} employés. Le net moyen est de ${formatCurrency(overview.salaire_net_moyen)}.`;
+    }
+
+    if (contains('coût', 'cost', 'employé', 'employee')) {
+        return `Le coût moyen par employé est estimé à ${formatCurrency(overview.cout_par_employe_brut)} brut et ${formatCurrency(overview.cout_par_employe_net)} net.`;
+    }
+
+    if (contains('prime', 'bonus')) {
+        const topPrime = (salary.top_primes || [])[0];
+        const topInfo = topPrime ? ` Le collaborateur ${topPrime.mat_pers} perçoit ${formatCurrency(topPrime.montant)}.` : '';
+        return `Les primes représentent ${formatPercentage(overview.bonus_ratio)} de la masse brute.${topInfo}`;
+    }
+
+    if (contains('charge', 'cnss', 'impôt', 'impot', 'tax', 'taxe')) {
+        return `Les charges s'élèvent à ${formatCurrency(overview.total_charges)}, avec ${formatCurrency(overview.total_cnss)} de CNSS (${formatPercentage(overview.cnss_rate)}) et ${formatCurrency(overview.total_impots)} d'impôts (${formatPercentage(overview.tax_rate)}).`;
+    }
+
+    if (contains('absence', 'absent')) {
+        return `Nous enregistrons ${formatNumber(overview.total_absence_jours, 0)} jours d'absence, soit ${formatNumber(overview.average_absence_par_employe, 2)} jour(s) par employé, pour un coût estimé de ${formatCurrency(overview.absence_cost_estime)}.`;
+    }
+
+    if (contains('anomal', 'anomaly', 'spike')) {
+        const anomalies = overview.anomalies_mensuelles || [];
+        if (!anomalies.length) {
+            return "Aucune anomalie de paie détectée sur la période actuelle.";
+        }
+        return `Attention aux mois suivants : ${anomalies.map(a => `${a.label} (+${a.ecart_percent.toFixed(1)}%)`).join(', ')}.`;
+    }
+
+    if (contains('service', 'département')) {
+        const topService = (salary.service_rankings || [])[0];
+        if (topService) {
+            return `Le service ${topService.service} affiche un salaire net moyen de ${formatCurrency(topService.salaire_moyen)} pour ${formatNumber(topService.effectif, 0)} employés.`;
+        }
+        return "Les données par service ne sont pas disponibles pour l'instant.";
+    }
+
+    if (contains('categorie', 'category')) {
+        const topCategory = (salary.categorie_rankings || [])[0];
+        if (topCategory) {
+            return `La catégorie ${topCategory.categorie} bénéficie d'un salaire net moyen de ${formatCurrency(topCategory.salaire_moyen)} pour ${formatNumber(topCategory.effectif, 0)} collaborateurs.`;
+        }
+    }
+
+    if (contains('scenario', 'plan', 'simulation', 'simulate')) {
+        return "Utilisez le planificateur de scénarios pour tester l'impact d'une variation de salaires, de primes ou d'effectif. Les curseurs mettent à jour les KPI projetés instantanément.";
+    }
+
+    if (contains('effectif', 'headcount')) {
+        return `L'effectif total est de ${formatNumber(workforce.effectif_total || overview.total_employes || 0, 0)} collaborateurs. Consultez la section Effectifs pour la répartition par service et catégorie.`;
+    }
+
+    if (contains('finance', 'santé', 'score')) {
+        return `Le score de santé financière est de ${formatNumber(financial.score_sante_financiere || 0, 0)}. Les avances concernent ${financial.indicateurs_avances?.pourcentage || 0}% des employés.`;
+    }
+
+    return "Je peux vous renseigner sur la masse salariale, les primes, les charges, les anomalies ou encore les effectifs. N'hésitez pas à poser une question plus précise.";
+}
+
+async function exportData() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/export/pdf${currentYear ? `?year=${currentYear}` : ''}`);
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Export impossible');
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `rapport_paie_${currentYear || 'toutes'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function getLineOptions(yTitle) {
+    return {
+        responsive: true,
+        plugins: {
+            legend: { position: 'top' },
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: yTitle },
+            },
+            x: {
+                ticks: { maxRotation: 0, minRotation: 0 }
+            }
+        }
+    };
+}
+
+function getBarOptions(yTitle) {
+    return {
+        responsive: true,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: yTitle }
+            },
+            x: {
+                ticks: { autoSkip: false }
+            }
+        }
+    };
+}
+
+function getHorizontalBarOptions(xTitle) {
+    const base = getBarOptions(xTitle);
+    base.indexAxis = 'y';
+    base.scales.x = base.scales.x || {};
+    base.scales.x.beginAtZero = true;
+    base.scales.x.title = { display: true, text: xTitle };
+    base.scales.y = base.scales.y || {};
+    base.scales.y.ticks = { autoSkip: false };
+    return base;
+}
+
+function getPieOptions() {
+    return {
+        responsive: true,
+        plugins: {
+            legend: { position: 'bottom' }
+        }
+    };
+}
+
+function formatCurrency(value) {
+    if (value === null || value === undefined) return '0 TND';
+    const number = Number(value);
+    if (Number.isNaN(number)) return '0 TND';
+    return `${Math.round(number).toLocaleString('fr-FR')} TND`;
+}
+
+function formatNumber(value, decimals = 1) {
+    const number = Number(value);
+    return Number.isNaN(number) ? '0' : number.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function formatPercentage(value, decimals = 1) {
+    const number = Number(value) * 100;
+    return Number.isNaN(number)
+        ? '0%'
+        : number.toLocaleString('fr-FR', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        }) + '%';
+}
+
+function formatPercentValue(value, decimals = 1) {
+    const number = Number(value);
+    return Number.isNaN(number)
+        ? '0%'
+        : number.toLocaleString('fr-FR', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        }) + '%';
+}
+</script>
+</body>
+</html>

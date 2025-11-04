@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suivi des accès utilisateurs</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/access_dashboard.css') }}">
+</head>
+<body>
+    <nav class="topbar">
+        <div class="topbar-left">
+            <a href="{{ url_for('login.homepage') }}" class="back-link"><i class="fas fa-arrow-left"></i> Retour</a>
+            <h1><i class="fas fa-user-shield"></i> Contrôle des accès</h1>
+        </div>
+        <div class="topbar-right">
+            <span class="user-chip"><i class="fas fa-user"></i> {{ username }}</span>
+            <button id="refreshButton" class="refresh-btn"><i class="fas fa-sync-alt"></i> Actualiser</button>
+        </div>
+    </nav>
+
+    <main class="content">
+        <section class="metric-grid" id="metricGrid">
+            <div class="metric-card">
+                <div class="metric-icon users"><i class="fas fa-users"></i></div>
+                <div>
+                    <p class="metric-label">Utilisateurs actifs</p>
+                    <p class="metric-value" id="metricTotalUsers">-</p>
+                    <span class="metric-detail" id="metricActiveUsers">-</span>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon logins"><i class="fas fa-sign-in-alt"></i></div>
+                <div>
+                    <p class="metric-label">Connexions enregistrées</p>
+                    <p class="metric-value" id="metricTotalLogins">-</p>
+                    <span class="metric-detail" id="metricLoginsToday">-</span>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon security"><i class="fas fa-fingerprint"></i></div>
+                <div>
+                    <p class="metric-label">Dernière activité</p>
+                    <p class="metric-value" id="metricLastActivity">-</p>
+                    <span class="metric-detail" id="metricLastActivityDetail">-</span>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon info"><i class="fas fa-database"></i></div>
+                <div>
+                    <p class="metric-label">Synchronisation</p>
+                    <p class="metric-value" id="metricLastSync">-</p>
+                    <span class="metric-detail" id="metricLastSyncDetail">-</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="panels">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-address-book"></i> Comptes utilisateurs</h2>
+                    <div class="panel-actions">
+                        <input type="search" id="userSearch" class="search-input" placeholder="Rechercher un utilisateur...">
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <table id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>Utilisateur</th>
+                                <th>Email</th>
+                                <th>Dernière connexion</th>
+                                <th>IP récente</th>
+                                <th>Connexions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-history"></i> Activité récente</h2>
+                </div>
+                <div class="panel-body logs" id="logsContainer">
+                    <div class="empty-state" id="logsEmptyState">
+                        <i class="fas fa-clipboard-list"></i>
+                        <p>Aucune activité récente à afficher.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <template id="logItemTemplate">
+        <div class="log-item">
+            <div class="log-icon"></div>
+            <div class="log-content">
+                <p class="log-title"></p>
+                <p class="log-subtitle"></p>
+            </div>
+            <div class="log-meta">
+                <span class="log-time"></span>
+                <span class="log-ip"></span>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        const usersTableBody = document.querySelector('#usersTable tbody');
+        const logsContainer = document.getElementById('logsContainer');
+        const logsEmptyState = document.getElementById('logsEmptyState');
+        const logItemTemplate = document.getElementById('logItemTemplate');
+        const refreshButton = document.getElementById('refreshButton');
+        const userSearch = document.getElementById('userSearch');
+
+        let cachedUsers = [];
+
+        function formatDateTime(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleString('fr-FR', {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            }).replace('.', '');
+        }
+
+        function formatRelative(value) {
+            if (!value) return '';
+            const date = new Date(value);
+            const now = new Date();
+            const diff = now - date;
+            if (Number.isNaN(diff)) return '';
+            const minutes = Math.floor(diff / 60000);
+            if (minutes < 1) return "à l'instant";
+            if (minutes < 60) return `il y a ${minutes} min`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `il y a ${hours} h`;
+            const days = Math.floor(hours / 24);
+            if (days < 30) return `il y a ${days} j`;
+            const months = Math.floor(days / 30);
+            if (months < 12) return `il y a ${months} mois`;
+            const years = Math.floor(months / 12);
+            return `il y a ${years} an${years > 1 ? 's' : ''}`;
+        }
+
+        function formatNumberFR(value) {
+            if (value === null || value === undefined || Number.isNaN(Number(value))) return '0';
+            return Number(value).toLocaleString('fr-FR');
+        }
+
+        async function loadAccessData() {
+            refreshButton.classList.add('loading');
+            try {
+                const response = await fetch('{{ url_for('login.api_access_logs') }}');
+                if (!response.ok) {
+                    throw new Error('Erreur lors du chargement des données');
+                }
+                const data = await response.json();
+                cachedUsers = data.users || [];
+                renderUsersTable(cachedUsers);
+                renderLogs(data.recent_logs || []);
+                updateMetrics(cachedUsers, data.recent_logs || []);
+            } catch (error) {
+                logsContainer.innerHTML = `<div class="error-state"><i class="fas fa-exclamation-triangle"></i> ${error.message}</div>`;
+                console.error(error);
+            } finally {
+                refreshButton.classList.remove('loading');
+            }
+        }
+
+        function updateMetrics(users, logs) {
+            const totalUsers = users.length;
+            const totalLogins = users.reduce((sum, user) => sum + (user.login_count || 0), 0);
+            const today = new Date().toISOString().split('T')[0];
+            const loginsToday = logs.filter(log => (log.event_type === 'login') && log.event_time.startsWith(today)).length;
+            const lastActivity = logs.length ? logs[0].event_time : null;
+
+            document.getElementById('metricTotalUsers').textContent = formatNumberFR(totalUsers);
+            document.getElementById('metricActiveUsers').textContent = `${formatNumberFR(users.filter(u => (u.login_count || 0) > 0).length)} utilisateurs connectés au moins une fois`;
+            document.getElementById('metricTotalLogins').textContent = formatNumberFR(totalLogins);
+            document.getElementById('metricLoginsToday').textContent = `${formatNumberFR(loginsToday)} connexion${loginsToday > 1 ? 's' : ''} aujourd'hui`;
+            document.getElementById('metricLastActivity').textContent = formatDateTime(lastActivity);
+            document.getElementById('metricLastActivityDetail').textContent = formatRelative(lastActivity);
+
+            const lastSync = logs.length ? logs[0].event_time : null;
+            document.getElementById('metricLastSync').textContent = formatDateTime(lastSync);
+            document.getElementById('metricLastSyncDetail').textContent = formatRelative(lastSync);
+        }
+
+        function renderUsersTable(users) {
+            usersTableBody.innerHTML = '';
+            users.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${user.username || '-'}</strong></td>
+                    <td>${user.email || '-'}</td>
+                    <td>
+                        <span class="nowrap">${formatDateTime(user.last_event_time || user.last_login)}</span>
+                        <span class="muted">${formatRelative(user.last_event_time || user.last_login)}</span>
+                    </td>
+                    <td>${user.last_ip || '-'}</td>
+                    <td>${formatNumberFR(user.login_count || 0)}</td>
+                `;
+                tr.addEventListener('click', () => {
+                    updateDrilldownBanner({
+                        title: 'Utilisateur',
+                        subtitle: user.username,
+                        info: [
+                            `Email : ${user.email || '-'}`,
+                            `Connexions : ${formatNumberFR(user.login_count || 0)}`,
+                            `Dernière activité : ${formatDateTime(user.last_event_time || user.last_login)}`,
+                            `Dernière IP : ${user.last_ip || '-'}`
+                        ]
+                    });
+                });
+                usersTableBody.appendChild(tr);
+            });
+            if (!users.length) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="5" class="empty">Aucun utilisateur trouvé</td>';
+                usersTableBody.appendChild(tr);
+            }
+        }
+
+        function updateDrilldownBanner(payload) {
+            const banner = document.getElementById('drilldownSummary');
+            if (!banner) return;
+            if (!payload) {
+                banner.innerHTML = `
+                    <i class="fas fa-hand-pointer"></i>
+                    <div>
+                        <span class="drilldown-title">Explorations interactives</span>
+                        <p class="drilldown-message">Cliquez sur un graphique pour détailler un service, une catégorie ou une période.</p>
+                    </div>
+                `;
+                return;
+            }
+            banner.innerHTML = `
+                <i class="fas fa-user-circle"></i>
+                <div>
+                    <span class="drilldown-title">${payload.title || ''}</span>
+                    <p class="drilldown-message"><strong>${payload.subtitle || ''}</strong></p>
+                    ${payload.info ? payload.info.map(item => `<p class="drilldown-message">${item}</p>`).join('') : ''}
+                </div>
+            `;
+        }
+
+        function renderLogs(logs) {
+            logsContainer.innerHTML = '';
+            if (!logs.length) {
+                logsContainer.appendChild(logsEmptyState);
+                logsEmptyState.style.display = 'flex';
+                return;
+            }
+            logsEmptyState.style.display = 'none';
+            logs.forEach(log => {
+                const clone = logItemTemplate.content.cloneNode(true);
+                const item = clone.querySelector('.log-item');
+                const icon = clone.querySelector('.log-icon');
+                const title = clone.querySelector('.log-title');
+                const subtitle = clone.querySelector('.log-subtitle');
+                const time = clone.querySelector('.log-time');
+                const ip = clone.querySelector('.log-ip');
+
+                const isLogin = log.event_type === 'login';
+                icon.innerHTML = `<i class="fas ${isLogin ? 'fa-sign-in-alt' : 'fa-sign-out-alt'}"></i>`;
+                icon.classList.toggle('login', isLogin);
+                icon.classList.toggle('logout', !isLogin);
+
+                title.textContent = `${log.username || 'Utilisateur'} · ${isLogin ? 'Connexion' : 'Déconnexion'}`;
+                subtitle.textContent = log.user_agent || 'Client inconnu';
+                time.textContent = formatRelative(log.event_time);
+                ip.textContent = log.ip_address || '-';
+
+                item.addEventListener('click', () => {
+                    updateDrilldownBanner({
+                        title: isLogin ? 'Connexion' : 'Déconnexion',
+                        subtitle: log.username,
+                        info: [
+                            `Horodatage : ${formatDateTime(log.event_time)}`,
+                            `Adresse IP : ${log.ip_address || '-'}`,
+                            `Agent : ${log.user_agent || '-'}`
+                        ]
+                    });
+                });
+
+                logsContainer.appendChild(clone);
+            });
+        }
+
+        function filterUsers() {
+            const term = (userSearch.value || '').toLowerCase().trim();
+            if (!term) {
+                renderUsersTable(cachedUsers);
+                return;
+            }
+            const filtered = cachedUsers.filter(user => (
+                (user.username || '').toLowerCase().includes(term) ||
+                (user.email || '').toLowerCase().includes(term)
+            ));
+            renderUsersTable(filtered);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDrilldownBanner(null);
+            loadAccessData();
+            refreshButton.addEventListener('click', loadAccessData);
+            userSearch.addEventListener('input', filterUsers);
+        });
+    </script>
+</body>
+</html>

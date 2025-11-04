@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARABSOFT · Portail Analytics</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/homepage.css') }}">
+</head>
+<body>
+    <div class="background">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <nav class="navbar">
+        <div class="brand">
+            <img src="{{ url_for('static', filename='arabsoft.png') }}" alt="ArabSoft" class="brand-logo">
+            <div class="brand-text">
+                <span class="brand-title">ArabSoft Analytics Suite</span>
+                <span class="brand-subtitle">Pilotage RH &amp; Paie</span>
+            </div>
+        </div>
+        <div class="nav-actions">
+            <span class="welcome-chip">
+                <i class="fas fa-user-circle"></i>
+                Bonjour {{ username or "Utilisateur" }}
+            </span>
+            <a href="{{ url_for('login.logout') }}" class="btn btn-outline">
+                <i class="fas fa-sign-out-alt"></i>
+                Déconnexion
+            </a>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-content">
+            <span class="hero-tagline">Suite analytique RH &amp; Paie</span>
+            <h1>Bienvenue sur votre cockpit de décision</h1>
+            <p>
+                Pilotez la performance RH, suivez les heures de présence et maîtrisez la masse salariale au
+                travers de tableaux de bord unifiés. Chaque indicateur est mis à jour en temps réel pour
+                sécuriser vos décisions opérationnelles et stratégiques.
+            </p>
+            <div class="hero-actions">
+                <a href="#dashboards" class="btn btn-primary">
+                    <i class="fas fa-chart-bar"></i>
+                    Explorer les dashboards
+                </a>
+                <a href="#resources" class="btn btn-ghost">
+                    <i class="fas fa-book-open"></i>
+                    Documentation
+                </a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="glow-card">
+                <div class="glow-title">Instantané système</div>
+                <ul class="glow-metrics">
+                    <li><span class="metric-label">Connexions Oracle</span><span class="metric-value">Actives</span></li>
+                    <li><span class="metric-label">Dernière synchronisation</span><span class="metric-value">Moins de 5 min</span></li>
+                    <li><span class="metric-label">Mode administrateur</span><span class="metric-value">{{ 'Oui' if is_admin else 'Non' }}</span></li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <main id="dashboards" class="cards-section">
+        <article class="dashboard-card">
+            <div class="card-icon gradient-blue"><i class="fas fa-star"></i></div>
+            <h2>Performance des collaborateurs</h2>
+            <p>Suivi multi-indicateurs des talents : objectifs, évaluations et trajectoires d’évolution.</p>
+            <a class="card-link" href="{{ url_for('employee_performance.employee_performance_dashboard') }}">
+                Accéder au dashboard <i class="fas fa-arrow-right"></i>
+            </a>
+        </article>
+
+        <article class="dashboard-card">
+            <div class="card-icon gradient-indigo"><i class="fas fa-clock"></i></div>
+            <h2>Pointages &amp; présence</h2>
+            <p>Analyse avancée des présences : tendances, heures supplémentaires et couverture des services.</p>
+            <a class="card-link" href="{{ url_for('hr_analytics.hr_analytics_dashboard') }}">
+                Accéder au dashboard <i class="fas fa-arrow-right"></i>
+            </a>
+        </article>
+
+        <article class="dashboard-card">
+            <div class="card-icon gradient-amber"><i class="fas fa-money-bill-wave"></i></div>
+            <h2>Analyse de la paie</h2>
+            <p>Visualisez les composantes salariales, prévoyez la masse salariale et maîtrisez vos charges.</p>
+            <a class="card-link" href="{{ url_for('payroll.payroll_dashboard') }}">
+                Accéder au dashboard <i class="fas fa-arrow-right"></i>
+            </a>
+        </article>
+
+        {% if is_admin %}
+        <article class="dashboard-card admin-card">
+            <div class="card-icon gradient-emerald"><i class="fas fa-shield-alt"></i></div>
+            <h2>Contrôle des accès</h2>
+            <p>Surveillez les connexions, auditez les utilisateurs et sécurisez votre plateforme analytique.</p>
+            <a class="card-link" href="{{ url_for('login.user_access_dashboard') }}">
+                Gestion des accès <i class="fas fa-arrow-right"></i>
+            </a>
+        </article>
+        {% endif %}
+    </main>
+
+    <section id="resources" class="resources-section">
+        <div class="resource-card">
+            <h3><i class="fas fa-life-ring"></i> Support &amp; documentation</h3>
+            <p>
+                Retrouvez les guides d’utilisation, les FAQ et les procédures pour tirer le meilleur parti
+                de vos tableaux de bord.
+            </p>
+            <a class="resource-link" href="https://docs.oracle.com/en/" target="_blank" rel="noopener">
+                Consulter les ressources <i class="fas fa-external-link-alt"></i>
+            </a>
+        </div>
+        <div class="resource-card">
+            <h3><i class="fas fa-lock"></i> Politique de sécurité</h3>
+            <p>
+                Vos données sont protégées. Consultez les règles d’accès et les recommandations pour
+                garantir un usage conforme.
+            </p>
+            <span class="resource-pill">Conformité RGPD</span>
+            <span class="resource-pill">Audit en temps réel</span>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>&copy; {{ 2025 }} ArabSoft. Tous droits réservés.</p>
+        <p class="footer-links">
+            <a href="https://arabsoft.com.tn" target="_blank" rel="noopener">arabsoft.com.tn</a>
+            <span>&middot;</span>
+            <a href="#dashboards">Tableaux de bord</a>
+            <span>&middot;</span>
+            <a href="#resources">Ressources</a>
+        </p>
+    </footer>
+</body>
+</html>

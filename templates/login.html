@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARABSOFT - Tableau de Bord Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+    /* CSS remains unchanged */
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+        background: linear-gradient(135deg, #0d2b5c 0%, #1d539e 100%);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+        overflow: hidden;
+    }
+
+    .background-shapes {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+    }
+
+    .shape {
+        position: absolute;
+        border-radius: 50%;
+        opacity: 0.1;
+    }
+
+    .shape-1 { width: 300px; height: 300px; background: #e59502; top: -100px; left: -100px; }
+    .shape-2 { width: 200px; height: 200px; background: #6c6d72; bottom: -50px; left: 200px; }
+    .shape-3 { width: 250px; height: 250px; background: #1d539e; top: 150px; right: -100px; }
+    .shape-4 { width: 150px; height: 150px; background: #e59502; bottom: 100px; right: 200px; }
+
+    .container {
+        width: 100%;
+        max-width: 450px;
+        perspective: 1000px;
+    }
+
+    .card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+        padding: 40px;
+        transform-style: preserve-3d;
+        transition: transform 0.5s ease;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        animation: fadeIn 0.8s ease-out forwards;
+    }
+
+    .card:hover {
+        transform: translateY(-5px) rotateX(2deg);
+    }
+
+    .logo-container {
+        text-align: center;
+        margin-bottom: 30px;
+        position: relative;
+    }
+
+    .logo-container img {
+        max-width: 200px;
+        height: auto;
+    }
+
+    .logo {
+        font-size: 36px;
+        font-weight: 800;
+        background: linear-gradient(to right, #1d539e, #e59502);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        letter-spacing: 2px;
+        position: relative;
+        display: inline-block;
+    }
+
+    .logo::after {
+        content: '';
+        position: absolute;
+        bottom: -10px;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(to right, #1d539e, #e59502);
+        border-radius: 3px;
+    }
+
+    .tagline {
+        color: #6c6d72;
+        font-size: 14px;
+        margin-top: 10px;
+        letter-spacing: 1px;
+    }
+
+    .admin-badge {
+        display: inline-block;
+        background: linear-gradient(to right, #e59502, #ffb733);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 10px;
+        box-shadow: 0 4px 10px rgba(229, 149, 2, 0.3);
+    }
+
+    .form-title {
+        color: #1d539e;
+        font-size: 24px;
+        margin-bottom: 5px;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    .form-subtitle {
+        color: #6c6d72;
+        font-size: 14px;
+        margin-bottom: 25px;
+        text-align: center;
+    }
+
+    .input-group {
+        position: relative;
+        margin-bottom: 25px;
+    }
+
+    .input-group i {
+        position: absolute;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c6d72;
+        font-size: 18px;
+        transition: all 0.3s;
+    }
+
+    .input-group input {
+        width: 100%;
+        padding: 18px 20px 18px 55px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        background: rgba(29, 83, 158, 0.05);
+        transition: all 0.3s;
+        color: #1d539e;
+        border: 1px solid transparent;
+    }
+
+    .input-group input:focus {
+        outline: none;
+        background: rgba(29, 83, 158, 0.1);
+        border-color: #1d539e;
+        box-shadow: 0 5px 15px rgba(29, 83, 158, 0.1);
+    }
+
+    .input-group input:focus + i { color: #e59502; }
+    .input-group input::placeholder { color: #9ea9bb; }
+
+    .toggle-password {
+        position: absolute;
+        right: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c6d72;
+        cursor: pointer;
+        font-size: 18px;
+        transition: color 0.3s;
+    }
+
+    .toggle-password:hover { color: #1d539e; }
+
+    .options {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+    }
+
+    .remember-me {
+        display: flex;
+        align-items: center;
+        color: #6c6d72;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .remember-me input {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        margin-right: 10px;
+        background: rgba(29, 83, 158, 0.1);
+        border: 1px solid #d1d9e6;
+        position: relative;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .remember-me input:checked {
+        background: #1d539e;
+        border-color: #1d539e;
+    }
+
+    .remember-me input:checked::after {
+        content: '✓';
+        position: absolute;
+        color: white;
+        font-size: 12px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+
+    .forgot-password {
+        color: #1d539e;
+        font-size: 14px;
+        text-decoration: none;
+        transition: all 0.3s;
+        font-weight: 500;
+    }
+
+    .forgot-password:hover {
+        color: #e59502;
+        text-decoration: underline;
+    }
+
+    .login-btn {
+        width: 100%;
+        background: linear-gradient(to right, #1d539e, #2a65c0);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 18px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.3s;
+        box-shadow: 0 5px 15px rgba(29, 83, 158, 0.3);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .login-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: all 0.5s;
+    }
+
+    .login-btn:hover {
+        background: linear-gradient(to right, #2a65c0, #3a75d8);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(29, 83, 158, 0.4);
+    }
+
+    .login-btn:hover::before { left: 100%; }
+    .login-btn:active { transform: translateY(0); }
+
+    .security-note {
+        text-align: center;
+        margin-top: 25px;
+        color: #6c6d72;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .security-note i { color: #1d539e; }
+
+    .footer {
+        text-align: center;
+        margin-top: 30px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 12px;
+    }
+
+    .notification {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 18px 25px;
+        border-radius: 12px;
+        color: white;
+        font-weight: 500;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        transition: all 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        transform: translateX(100px);
+        opacity: 0;
+    }
+
+    .notification.success { background: linear-gradient(to right, #4CAF50, #2E7D32); }
+    .notification.error { background: linear-gradient(to right, #F44336, #D32F2F); }
+    .notification.show { transform: translateX(0); opacity: 1; }
+
+    .close-notification {
+        cursor: pointer;
+        font-size: 16px;
+        opacity: 0.8;
+        transition: opacity 0.3s;
+    }
+
+    .close-notification:hover { opacity: 1; }
+
+    @media (max-width: 480px) {
+        .card { padding: 30px 20px; }
+        .options { flex-direction: column; align-items: flex-start; gap: 15px; }
+        .forgot-password { margin-left: 28px; }
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px) rotateX(-10deg); }
+        to { opacity: 1; transform: translateY(0) rotateX(0); }
+    }
+</style>
+
+</head>
+<body>
+    <div class="background-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+        <div class="shape shape-4"></div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='arabsoft.png') }}" alt="Logo" width="150">
+
+                <div class="tagline">Système de Gestion des Utilisateurs</div>
+                <div class="admin-badge">PORTAIL ADMINISTRATEUR</div>
+            </div>
+            
+            <h2 class="form-title">Connexion Sécurisée Admin</h2>
+            <p class="form-subtitle">Entrez vos identifiants pour accéder au tableau de bord</p>
+            
+            <form id="loginForm">
+                <div class="input-group">
+                    <i class="fas fa-user-shield"></i>
+                    <input type="text" id="loginUsername" name="username" placeholder="Nom d'utilisateur Admin" required />
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="loginPassword" name="password" placeholder="Mot de passe Admin" required />
+                    <span class="toggle-password"><i class="fas fa-eye"></i></span>
+                </div>
+                
+                <div class="options">
+                    <label class="remember-me">
+                        <input type="checkbox" id="rememberMe">
+                        <span>Se souvenir de cet appareil</span>
+                    </label>
+                    <a href="#" class="forgot-password">Récupérer l'Accès</a>
+                </div>
+                
+                <button type="submit" class="login-btn">
+                    <span>Authentifier</span>
+                    <i class="fas fa-fingerprint"></i>
+                </button>
+            </form>
+            
+            <div class="security-note">
+                <i class="fas fa-shield-alt"></i>
+                <span>Connexion sécurisée et chiffrée</span>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; 2025 ARABSOFT. Accès restreint uniquement.</p>
+        </div>
+    </div>
+
+    <div id="notification" class="notification hidden">
+        <span id="notificationMessage"></span>
+        <i class="fas fa-times close-notification"></i>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('loginForm');
+            const togglePassword = document.querySelector('.toggle-password');
+            const passwordInput = document.getElementById('loginPassword');
+            const notification = document.getElementById('notification');
+            const notificationMessage = document.getElementById('notificationMessage');
+            const closeNotification = document.querySelector('.close-notification');
+            const csrfToken = "{{ csrf_token }}";
+
+            // --- Note: For a complete French experience, you would also need to translate the following:
+            // 1. All text inside the JavaScript `showNotification` calls (e.g., 'Please enter both username and password' and 'Network error. Please try again.'). These are dynamic.
+            // 2. The loading text: '<i class="fas fa-circle-notch fa-spin"></i> Authenticating...'
+
+            // Display flash messages from Flask
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        showNotification('{{ message }}', '{{ category }}' === 'success');
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            // Toggle password visibility
+            togglePassword.addEventListener('click', function() {
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                
+                const eyeIcon = this.querySelector('i');
+                eyeIcon.classList.toggle('fa-eye');
+                eyeIcon.classList.toggle('fa-eye-slash');
+            });
+
+            // Close notification
+            closeNotification.addEventListener('click', function() {
+                notification.classList.remove('show');
+            });
+
+            // Show notification
+            function showNotification(message, isSuccess = true) {
+                notification.className = 'notification ' + (isSuccess ? 'success' : 'error');
+                notificationMessage.textContent = message;
+                notification.classList.add('show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 5000);
+            }
+
+            // Handle login form submission
+            loginForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('loginUsername').value;
+                const password = document.getElementById('loginPassword').value;
+                const rememberMe = document.getElementById('rememberMe').checked;
+                
+                if (!username || !password) {
+                    showNotification('Veuillez entrer le nom d\'utilisateur et le mot de passe', false); // TRANSLATION HERE
+                    return;
+                }
+                
+                const submitBtn = loginForm.querySelector('button');
+                const originalText = submitBtn.innerHTML;
+                
+                // TRANSLATION HERE
+                submitBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Authentification en cours...'; 
+                submitBtn.disabled = true;
+                
+                try {
+                    const response = await fetch('{{ url_for("login.login") }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            password: password,
+                            csrf_token: csrfToken
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showNotification(data.message, true);
+                        
+                        if (rememberMe) {
+                            localStorage.setItem('rememberMe', 'true');
+                            localStorage.setItem('username', username);
+                        } else {
+                            localStorage.removeItem('rememberMe');
+                            localStorage.removeItem('username');
+                        }
+                        
+                        setTimeout(() => {
+                            window.location.href = '{{ url_for("login.homepage") }}';
+                        }, 1500);
+                    } else {
+                        showNotification(data.message, false);
+                    }
+                } catch (error) {
+                    showNotification('Erreur réseau. Veuillez réessayer.', false); // TRANSLATION HERE
+                    console.error('Login error:', error);
+                } finally {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            });
+
+            // Check if user is already logged in
+            async function checkAuth() {
+                try {
+                    const response = await fetch('{{ url_for("login.check_auth") }}', {
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        window.location.href = '{{ url_for("login.homepage") }}';
+                    } else {
+                        const rememberMe = localStorage.getItem('rememberMe');
+                        const username = localStorage.getItem('username');
+                        
+                        if (rememberMe === 'true' && username) {
+                            document.getElementById('loginUsername').value = username;
+                            document.getElementById('rememberMe').checked = true;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Auth check error:', error);
+                }
+            }
+
+            // Add subtle hover effect to inputs
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.addEventListener('focus', () => {
+                    input.parentElement.querySelector('i').style.transform = 'translateY(-50%) scale(1.2)';
+                });
+                
+                input.addEventListener('blur', () => {
+                    input.parentElement.querySelector('i').style.transform = 'translateY(-50%)';
+                });
+            });
+
+            checkAuth();
+        });
+    </script>
+</body>
+</html>

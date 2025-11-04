@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de Bord Analytique RH - Analytics Avancé</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.4.0/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/analytics_hr.css') }}">
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <h2>Navigation</h2>
+            <div class="nav-item active" onclick="showTab('overview')">
+                <i class="fas fa-chart-line"></i> Vue d'Ensemble
+            </div>
+            <div class="nav-item" onclick="showTab('hours')">
+                <i class="fas fa-clock"></i> Heures
+            </div>
+            <div class="nav-item" onclick="showTab('overtime')">
+                <i class="fas fa-fire"></i> Heures Sup
+            </div>
+            <div class="nav-item" onclick="showTab('patterns')">
+                <i class="fas fa-calendar-week"></i> Modèles
+            </div>
+            <div class="nav-item" onclick="showTab('insights')">
+                <i class="fas fa-lightbulb"></i> Insights
+            </div>
+            <div class="nav-item" onclick="showTab('categories')">
+                <i class="fas fa-tags"></i> Catégories
+            </div>
+            <div class="nav-item" onclick="showTab('efficiency')">
+                <i class="fas fa-tachometer-alt"></i> Efficacité
+            </div>
+            <div class="nav-item" onclick="showTab('seasonality')">
+                <i class="fas fa-leaf"></i> Saisonnalité
+            </div>
+        </nav>
+
+        <div style="flex: 1;">
+            <div id="connectionStatus" class="connection-status connection-offline">
+                <i class="fas fa-circle"></i> Connexion Base de Données
+            </div>
+
+            <header class="header">
+                <div class="header-content">
+                    <h1><i class="fas fa-chart-line"></i> Dashboard RH Analytics Avancé</h1>
+                    <p>Analyse Complète des Tendances de Pointage - Insights Stratégiques</p>
+                </div>
+                <div class="header-actions">
+                    <div class="year-selector">
+                        <label for="yearSelect">Année :</label>
+                        <select id="yearSelect" class="year-select" onchange="onYearChange()">
+                            <option value="">Toutes les années</option>
+                        </select>
+                    </div>
+                    <button class="btn" onclick="toggleDarkMode()" id="themeToggle">🌙 Mode Sombre</button>
+                    <a href="{{ url_for('login.homepage') }}" class="btn btn-home">🏠 Accueil</a>
+                </div>
+            </header>
+
+            <div class="dashboard-container">
+                <div id="loadingIndicator" class="loading">
+                    <div id="lottie-loader" style="width:150px; height:150px; margin:auto;"></div>
+                    <p>Chargement des données depuis Oracle...</p>
+                </div>
+
+                <div id="dashboardContent" style="display: none;">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-fingerprint"></i></div>
+                            <div class="stat-value" id="totalPointages">-</div>
+                            <div class="stat-label">Total Pointages</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
+                            <div class="stat-value" id="pointagesAnnuels">-</div>
+                            <div class="stat-label" id="pointagesYearLabel">Pointages sélection</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-users"></i></div>
+                            <div class="stat-value" id="uniqueEmployees">-</div>
+                            <div class="stat-label">Employés Totaux</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-user-check"></i></div>
+                            <div class="stat-value" id="employesActifs">-</div>
+                            <div class="stat-label" id="actifsYearLabel">Employés sélection</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-building"></i></div>
+                            <div class="stat-value" id="activeServices">-</div>
+                            <div class="stat-label">Services Actifs</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                            <div class="stat-value" id="avgHours">-</div>
+                            <div class="stat-label" id="avgHoursLabel">Heures Moy/Jour (Année)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-chart-area"></i></div>
+                            <div class="stat-value" id="totalHours">-</div>
+                            <div class="stat-label" id="totalHoursLabel">Total Heures (Année)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-history"></i></div>
+                            <div class="stat-value" id="yearsCovered">-</div>
+                            <div class="stat-label">Années Couvertes</div>
+                        </div>
+                    </div>
+
+                    <!-- Overview Section -->
+                    <div id="overview" class="tab-content active">
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-line"></i> Tendances Annuelles</h3>
+                                <div class="chart-container tall"><canvas id="yearlyTrendsChart"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-bar"></i> Comparaison Annuelle</h3>
+                                <div class="chart-container"><canvas id="yearComparisonChart"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-line"></i> Tendances Mensuelles</h3>
+                                <div class="chart-container"><canvas id="monthlyTrendsChart"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-bar"></i> Performance par Service</h3>
+                                <div class="chart-container tall"><canvas id="serviceYearlyChart"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="data-table">
+                            <table id="yearlyStatsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Année</th>
+                                        <th>Employés</th>
+                                        <th>Pointages</th>
+                                        <th>Total Heures</th>
+                                        <th>Heures Moyennes</th>
+                                        <th>Évolution</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Hours Section -->
+                    <div id="hours" class="tab-content">
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-clock"></i> Heures Moyennes par Service</h3>
+                                <div class="chart-container"><canvas id="hoursBarChart"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-line"></i> Tendance Heures de Travail</h3>
+                                <div class="chart-container"><canvas id="hoursTrendChart"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Overtime Section -->
+                    <div id="overtime" class="tab-content">
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-fire"></i> Taux Heures Supplémentaires</h3>
+                                <div class="chart-container"><canvas id="overtimeChart"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-area"></i> Volume Heures Supplémentaires</h3>
+                                <div class="chart-container"><canvas id="overtimeVolumeChart"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Patterns Section -->
+                    <div id="patterns" class="tab-content">
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-sun"></i> Heures de Pointe</h3>
+                                <div class="chart-container"><canvas id="peakHoursChart"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-calendar-week"></i> Modèle Hebdomadaire</h3>
+                                <div class="chart-container"><canvas id="weeklyPatternChart"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Insights Section -->
+                    <div id="insights" class="tab-content">
+                        <div class="insights-grid" id="insightsContainer"></div>
+                    </div>
+
+                    <!-- Categories Section -->
+                    <div id="categories" class="tab-content">
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-pie"></i> Répartition Catégories</h3>
+                                <div class="chart-container"><canvas id="categoriesChart"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-bar"></i> Heures par Catégorie</h3>
+                                <div class="chart-container"><canvas id="categoriesHoursChart"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="data-table">
+                            <table id="categoriesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Catégorie</th>
+                                        <th>Employés</th>
+                                        <th>Total Heures</th>
+                                        <th>Heures Moyennes</th>
+                                        <th>Pointages</th>
+                                        <th>Performance</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Efficiency Section -->
+                    <div id="efficiency" class="tab-content">
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-tachometer-alt"></i> Score Productivité</h3>
+                                <div class="chart-container"><canvas id="productivityChart"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-scatter"></i> Analyse Efficacité</h3>
+                                <div class="chart-container"><canvas id="efficiencyScatterChart"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="data-table">
+                            <table id="efficiencyTable">
+                                <thead>
+                                    <tr>
+                                        <th>Service</th>
+                                        <th>Employés</th>
+                                        <th>Score Productivité</th>
+                                        <th>Variation</th>
+                                        <th>Pointages/Employé</th>
+                                        <th>Statut</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Seasonality Section -->
+                    <div id="seasonality" class="tab-content">
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-leaf"></i> Analyse Saisonnière</h3>
+                                <div class="chart-container"><canvas id="seasonalChart"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3 class="chart-title"><i class="fas fa-chart-line"></i> Tendances Saisonnières</h3>
+                                <div class="chart-container"><canvas id="seasonTrendsChart"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="insights-grid" id="seasonalInsights"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let dashboardData = {};
+        let charts = {};
+        let selectedYear = null;
+        let hasUserSelectedYear = false;
+
+        // Fetch data from backend
+        async function fetchDataFromOracle(year = null, options = {}) {
+            try {
+                let url = '/api/dashboard';
+                const queryParts = [];
+
+                if (options.forceAll) {
+                    queryParts.push('mode=all');
+                } else if (typeof year === 'number' && !Number.isNaN(year)) {
+                    queryParts.push(`year=${year}`);
+                }
+
+                if (queryParts.length > 0) {
+                    url += `?${queryParts.join('&')}`;
+                }
+
+                const response = await axios.get(url);
+                if (response.status !== 200) {
+                    throw new Error('Failed to fetch data from backend');
+                }
+                return response.data;
+            } catch (error) {
+                console.error('Erreur de connexion à la base de données:', error);
+                throw error;
+            }
+        }
+
+        // Initialize dashboard
+        async function initDashboard() {
+            try {
+                document.getElementById('connectionStatus').className = 'connection-status connection-online';
+                document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-circle"></i> Connecté à Oracle';
+
+                await loadDashboardData(selectedYear);
+
+                document.getElementById('loadingIndicator').style.display = 'none';
+                document.getElementById('dashboardContent').style.display = 'block';
+            } catch (error) {
+                document.getElementById('loadingIndicator').innerHTML = 
+                    '<div class="error"><i class="fas fa-exclamation-triangle"></i> Erreur de connexion: ' + error.message + '</div>';
+                document.getElementById('connectionStatus').className = 'connection-status connection-offline';
+                document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-circle"></i> Déconnecté';
+            }
+        }
+
+        // Transform backend data
+        function transformData(backendData) {
+            return {
+                workingHours: backendData.assiduite?.heures_travail_moyennes || [],
+                overtime: backendData.assiduite?.analyse_heures_supplementaires || [],
+                peakHours: backendData.assiduite?.heures_de_pointe || [],
+                weeklyPattern: backendData.assiduite?.modele_hebdomadaire || [],
+                summary: backendData.summary || {},
+                yearlyTrends: backendData.yearly_trends || {},
+                categories: backendData.employee_categories || [],
+                seasonality: backendData.seasonality || {},
+                efficiency: backendData.service_efficiency || []
+            };
+        }
+
+        async function loadDashboardData(year = selectedYear, options = {}) {
+            const activeTab = document.querySelector('.tab-content.active');
+            const activeTabId = activeTab ? activeTab.id : 'overview';
+
+            const forceAll = options.forceAll || (hasUserSelectedYear && selectedYear === null && (year === null || typeof year !== 'number'));
+            const backendData = await fetchDataFromOracle(
+                forceAll ? null : year,
+                { forceAll }
+            );
+            dashboardData = transformData(backendData);
+
+            populateYearSelector(dashboardData.summary);
+
+            if (!forceAll && year !== selectedYear) {
+                await loadDashboardData(selectedYear);
+                return;
+            }
+
+            updateSummaryStats();
+            createAllTables();
+            generateInsights();
+            showTab(activeTabId);
+        }
+
+        function populateYearSelector(summary) {
+            const select = document.getElementById('yearSelect');
+            if (!select) {
+                return;
+            }
+
+            const years = summary?.annees_couvertes || [];
+            select.innerHTML = '<option value="">Toutes les années</option>';
+
+            years.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                select.appendChild(option);
+            });
+
+            if (!hasUserSelectedYear && selectedYear === null && summary?.selected_year) {
+                selectedYear = summary.selected_year;
+            }
+
+            if (selectedYear !== null && years.includes(selectedYear)) {
+                select.value = String(selectedYear);
+            } else {
+                select.value = '';
+            }
+        }
+
+        async function onYearChange() {
+            const select = document.getElementById('yearSelect');
+            if (!select) {
+                return;
+            }
+
+            const value = select.value;
+            selectedYear = value ? parseInt(value, 10) : null;
+            if (Number.isNaN(selectedYear)) {
+                selectedYear = null;
+            }
+
+            hasUserSelectedYear = true;
+            showLoader();
+
+            try {
+                await loadDashboardData(selectedYear, { forceAll: selectedYear === null });
+                document.getElementById('dashboardContent').style.display = 'block';
+            } catch (error) {
+                console.error('Erreur lors du changement d\'année:', error);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        // Update summary stats
+        function updateSummaryStats() {
+            const summary = dashboardData.summary || {};
+            const formatNumber = value => (typeof value === 'number' && !isNaN(value) ? value.toLocaleString() : '0');
+            const formatHoursValue = value => (typeof value === 'number' && !isNaN(value) ? value.toFixed(2) : '0');
+
+            const summarySelectedYear = summary.selected_year ?? null;
+            const yearForLabel = selectedYear !== null ? selectedYear : summarySelectedYear;
+            const usingAllYears = yearForLabel === null;
+            const yearLabelText = usingAllYears ? 'Toutes années' : yearForLabel;
+
+            document.getElementById('totalPointages').textContent = formatNumber(summary.total_pointages);
+            document.getElementById('pointagesAnnuels').textContent = formatNumber(summary.total_pointages_annee_courante);
+            document.getElementById('pointagesYearLabel').textContent = usingAllYears ? 'Pointages (Toutes années)' : `Pointages ${yearLabelText}`;
+
+            document.getElementById('uniqueEmployees').textContent = formatNumber(summary.employes_uniques_total);
+            document.getElementById('employesActifs').textContent = formatNumber(summary.employes_uniques);
+            document.getElementById('actifsYearLabel').textContent = usingAllYears ? 'Employés (Toutes années)' : `Employés ${yearLabelText}`;
+
+            document.getElementById('activeServices').textContent = formatNumber(summary.services_actifs);
+            document.getElementById('avgHours').textContent = `${formatHoursValue(summary.avg_daily_hours_current_year)}h`;
+            document.getElementById('avgHoursLabel').textContent = usingAllYears ? 'Heures Moy/Jour (Toutes années)' : `Heures Moy/Jour (${yearLabelText})`;
+
+            const totalHoursValue = usingAllYears ? summary.total_work_hours : summary.total_work_hours_selected;
+            document.getElementById('totalHours').textContent = `${formatNumber(totalHoursValue)}h`;
+            document.getElementById('totalHoursLabel').textContent = usingAllYears ? 'Total Heures (Toutes années)' : `Total Heures (${yearLabelText})`;
+
+            const yearsCoveredCount = Array.isArray(summary.annees_couvertes) ? summary.annees_couvertes.length : 0;
+            document.getElementById('yearsCovered').textContent = formatNumber(yearsCoveredCount);
+        }
+
+        // Helper function to safely initialize a chart
+        function initializeChart(canvasId, chartConfig) {
+            const canvas = document.getElementById(canvasId);
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    if (charts[canvasId]) {
+                        charts[canvasId].destroy();
+                    }
+                    charts[canvasId] = new Chart(ctx, chartConfig);
+                }
+            } else {
+                console.warn(`Canvas with ID ${canvasId} not found`);
+            }
+        }
+
+        // Chart creation functions
+        function createYearlyTrendsCharts() {
+            const allYearlyData = dashboardData.yearlyTrends.yearly_overview || [];
+            const trendSelectedYear = selectedYear !== null ? selectedYear : (dashboardData.yearlyTrends.selected_year || null);
+            const filteredYearlyData = selectedYear !== null ? allYearlyData.filter(d => d.annee === selectedYear) : allYearlyData;
+            const yearlyData = filteredYearlyData.length > 0 ? filteredYearlyData : allYearlyData;
+
+            if (yearlyData.length > 0) {
+                initializeChart('yearlyTrendsChart', {
+                    type: 'line',
+                    data: {
+                        labels: yearlyData.map(d => d.annee.toString()),
+                        datasets: [{
+                            label: 'Employés Uniques',
+                            data: yearlyData.map(d => d.employes_uniques),
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            yAxisID: 'y',
+                            tension: 0.4,
+                            pointRadius: 6,
+                            borderWidth: 3
+                        }, {
+                            label: 'Total Heures (milliers)',
+                            data: yearlyData.map(d => Math.round(d.total_heures / 1000)),
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.4,
+                            pointRadius: 6,
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false
+                            }
+                        },
+                        scales: {
+                            x: { 
+                                display: true, 
+                                title: { display: true, text: 'Année' }
+                            },
+                            y: { 
+                                type: 'linear', 
+                                display: true, 
+                                position: 'left', 
+                                title: { display: true, text: 'Employés' },
+                                beginAtZero: true
+                            },
+                            y1: { 
+                                type: 'linear', 
+                                display: true, 
+                                position: 'right', 
+                                title: { display: true, text: 'Heures (K)' }, 
+                                grid: { drawOnChartArea: false },
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+
+                initializeChart('yearComparisonChart', {
+                    type: 'bar',
+                    data: {
+                        labels: yearlyData.map(d => d.annee.toString()),
+                        datasets: [{
+                            label: 'Total Pointages',
+                            data: yearlyData.map(d => d.total_pointages),
+                            backgroundColor: 'rgba(75, 192, 192, 0.8)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Nombre de pointages' }
+                            }
+                        }
+                    }
+                });
+            }
+
+            const monthlyData = dashboardData.yearlyTrends.monthly_current_year || [];
+            const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+            const monthYearLabel = trendSelectedYear !== null ? trendSelectedYear : '';
+            if (monthlyData.length > 0) {
+                initializeChart('monthlyTrendsChart', {
+                    type: 'line',
+                    data: {
+                        labels: monthlyData.map(d => monthNames[d.mois - 1] || d.mois),
+                        datasets: [{
+                            label: monthYearLabel ? `Employés Actifs (${monthYearLabel})` : 'Employés Actifs',
+                            data: monthlyData.map(d => d.employes_actifs),
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 6,
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Nombre d\'employés' }
+                            }
+                        }
+                    }
+                });
+            }
+
+            const serviceYearlyDataRaw = dashboardData.yearlyTrends.service_yearly_performance || [];
+            const serviceYearlyData = selectedYear !== null
+                ? serviceYearlyDataRaw.filter(d => d.annee_pointage === selectedYear || d.annee === selectedYear)
+                : serviceYearlyDataRaw;
+
+            if (serviceYearlyData.length > 0) {
+                const services = [...new Set(serviceYearlyData.map(d => d.libelle_y))];
+                const years = [...new Set(serviceYearlyData.map(d => d.annee_pointage || trendSelectedYear))].sort();
+
+                const colorPalette = services.map((_, index) => {
+                    const hue = (index * 47) % 360;
+                    return {
+                        fill: `hsla(${hue}, 70%, 55%, 0.75)`,
+                        border: `hsla(${hue}, 70%, 40%, 1)`
+                    };
+                });
+
+                const datasets = services.map((service, index) => {
+                    const colors = colorPalette[index];
+                    return {
+                        label: service,
+                        data: years.map(year => {
+                            const record = serviceYearlyData.find(
+                                d => (d.annee_pointage || trendSelectedYear) === year && d.libelle_y === service
+                            );
+                            return record ? record.total_heures : 0;
+                        }),
+                        backgroundColor: colors.fill,
+                        borderColor: colors.border,
+                        borderWidth: 2
+                    };
+                });
+
+                initializeChart('serviceYearlyChart', {
+                    type: 'bar',
+                    data: { 
+                        labels: years.map(y => y ? y.toString() : ''), 
+                        datasets: datasets 
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' }
+                        },
+                        scales: { 
+                            y: { 
+                                beginAtZero: true, 
+                                title: { display: true, text: 'Total Heures' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function createWorkingHoursCharts() {
+            const workingHours = dashboardData.workingHours || [];
+            
+            if (workingHours.length > 0) {
+                // Bar chart for average hours by service
+                initializeChart('hoursBarChart', {
+                    type: 'bar',
+                    data: {
+                        labels: workingHours.map(d => d.service),
+                        datasets: [{
+                            label: 'Heures/Jour',
+                            data: workingHours.map(d => d.heures_moyennes_par_jour),
+                            backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Heures par jour' }
+                            }
+                        }
+                    }
+                });
+
+                // Line chart for trend visualization
+                initializeChart('hoursTrendChart', {
+                    type: 'line',
+                    data: {
+                        labels: workingHours.map(d => d.service),
+                        datasets: [{
+                            label: 'Heures Moyennes',
+                            data: workingHours.map(d => d.heures_moyennes_par_jour),
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: {
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Heures moyennes' }
+                            },
+                            x: { 
+                                ticks: { maxRotation: 45 }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function createOvertimeCharts() {
+            const overtimeData = dashboardData.overtime || [];
+            
+            if (overtimeData.length > 0) {
+                // Bar chart for overtime rates
+                initializeChart('overtimeChart', {
+                    type: 'bar',
+                    data: {
+                        labels: overtimeData.map(d => d.libelle_y),
+                        datasets: [{
+                            label: 'Taux Heures Sup (%)',
+                            data: overtimeData.map(d => d.taux_heures_sup || 0),
+                            backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: {
+                            y: { 
+                                beginAtZero: true, 
+                                max: 100,
+                                title: { display: true, text: 'Taux (%)' }
+                            },
+                            x: { 
+                                ticks: { maxRotation: 45 }
+                            }
+                        }
+                    }
+                });
+
+                // Scatter chart for overtime volume analysis
+                initializeChart('overtimeVolumeChart', {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: 'Volume Heures Supplémentaires',
+                            data: overtimeData.map((d, index) => ({
+                                x: d.taux_heures_sup || 0,
+                                y: d.heures_sup_moyennes || 0,
+                                r: Math.max(8, Math.min(20, (d.heures_sup_moyennes || 0) * 2 + 5)),
+                                service: d.libelle_y,
+                                index: index
+                            })),
+                            backgroundColor: 'rgba(255, 159, 64, 0.6)',
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const point = context.raw;
+                                        return point.service + ': ' + point.x + '% taux, ' + point.y + 'h moyennes';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'Taux Heures Sup (%)' },
+                                beginAtZero: true
+                            },
+                            y: { 
+                                title: { display: true, text: 'Volume Heures Moyennes' },
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function createPatternCharts() {
+            const peakHours = dashboardData.peakHours || [];
+            const weeklyPattern = dashboardData.weeklyPattern || [];
+            
+            if (peakHours.length > 0) {
+                initializeChart('peakHoursChart', {
+                    type: 'bar',
+                    data: {
+                        labels: peakHours.map(d => (d.heure || d.heure_entree_parsee) + 'h00'),
+                        datasets: [{
+                            label: 'Nombre d\'Entrées',
+                            data: peakHours.map(d => d.nombre_entrees || d.mat_pers),
+                            backgroundColor: 'rgba(153, 102, 255, 0.8)',
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Nombre d\'entrées' }
+                            }
+                        }
+                    }
+                });
+            }
+
+            if (weeklyPattern.length > 0) {
+                initializeChart('weeklyPatternChart', {
+                    type: 'radar',
+                    data: {
+                        labels: weeklyPattern.map(d => d.jour_semaine),
+                        datasets: [{
+                            label: 'Présences',
+                            data: weeklyPattern.map(d => d.nombre_presences || d.mat_pers),
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 3,
+                            pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                            pointRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: { 
+                            r: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Nombre de présences' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function createCategoriesCharts() {
+            const categoriesData = dashboardData.categories || [];
+            
+            if (categoriesData.length > 0) {
+                // Répartition Catégories - Doughnut chart
+                initializeChart('categoriesChart', {
+                    type: 'doughnut',
+                    data: {
+                        labels: categoriesData.map(d => d.categorie),
+                        datasets: [{
+                            data: categoriesData.map(d => d.nb_employes),
+                            backgroundColor: [
+                                '#FF6384', '#36A2EB', '#FFCE56', 
+                                '#4BC0C0', '#9966FF', '#FF9F40'
+                            ],
+                            borderWidth: 2,
+                            borderColor: '#fff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { position: 'right' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.label + ': ' + context.parsed + ' employés';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Heures par Catégorie - Bar chart
+                initializeChart('categoriesHoursChart', {
+                    type: 'bar',
+                    data: {
+                        labels: categoriesData.map(d => d.categorie),
+                        datasets: [{
+                            label: 'Heures Moyennes',
+                            data: categoriesData.map(d => d.heures_moyennes),
+                            backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Heures moyennes par jour' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function createEfficiencyCharts() {
+            const efficiencyData = dashboardData.efficiency || [];
+            
+            if (efficiencyData.length > 0) {
+                // Score Productivité - Horizontal bar chart
+                initializeChart('productivityChart', {
+                    type: 'bar',
+                    data: {
+                        labels: efficiencyData.map(d => d.service),
+                        datasets: [{
+                            label: 'Score Productivité (%)',
+                            data: efficiencyData.map(d => d.score_productivite || 0),
+                            backgroundColor: efficiencyData.map(d => {
+                                const score = d.score_productivite || 0;
+                                return score > 80 ? 'rgba(40, 167, 69, 0.8)' : 
+                                       score > 60 ? 'rgba(255, 193, 7, 0.8)' : 
+                                       'rgba(220, 53, 69, 0.8)';
+                            }),
+                            borderColor: efficiencyData.map(d => {
+                                const score = d.score_productivite || 0;
+                                return score > 80 ? '#28a745' : 
+                                       score > 60 ? '#ffc107' : 
+                                       '#dc3545';
+                            }),
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: { 
+                            x: { 
+                                beginAtZero: true, 
+                                max: 100,
+                                title: { display: true, text: 'Score (%)' }
+                            }
+                        }
+                    }
+                });
+
+                // Analyse Efficacité - Scatter chart
+                initializeChart('efficiencyScatterChart', {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: 'Services',
+                            data: efficiencyData.map((d, index) => ({
+                                x: d.heures_moyennes || 0,
+                                y: d.coefficient_variation || 0,
+                                r: Math.max(8, Math.min(20, (d.nb_employes || 1) * 2)),
+                                service: d.service,
+                                index: index
+                            })),
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const point = context.raw;
+                                        return point.service + ': ' + point.x + 'h moyennes, ' + point.y + '% variation';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'Heures Moyennes' },
+                                beginAtZero: true
+                            },
+                            y: { 
+                                title: { display: true, text: 'Coefficient de Variation (%)' },
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function createSeasonalityCharts() {
+            const seasonalData = dashboardData.seasonality;
+            
+            if (seasonalData.season_summary && seasonalData.season_summary.length > 0) {
+                // Seasonal radar chart
+                initializeChart('seasonalChart', {
+                    type: 'radar',
+                    data: {
+                        labels: seasonalData.season_summary.map(d => d.saison),
+                        datasets: [{
+                            label: 'Heures Moyennes',
+                            data: seasonalData.season_summary.map(d => d.heures_moyennes),
+                            backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 3,
+                            pointBackgroundColor: 'rgba(102, 126, 234, 1)',
+                            pointRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: { 
+                            r: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Heures moyennes' }
+                            }
+                        }
+                    }
+                });
+
+                // Seasonal trends line chart
+                initializeChart('seasonTrendsChart', {
+                    type: 'line',
+                    data: {
+                        labels: seasonalData.season_summary.map(d => d.saison),
+                        datasets: [{
+                            label: 'Employés Moyens',
+                            data: seasonalData.season_summary.map(d => d.employes_moyens),
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 6,
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Nombre d\'employés moyens' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Table creation functions
+        function createAllTables() {
+            createYearlyStatsTable();
+            createCategoriesTable();
+            createEfficiencyTable();
+        }
+
+        function createYearlyStatsTable() {
+            const tableBody = document.querySelector('#yearlyStatsTable tbody');
+            const allYearlyData = dashboardData.yearlyTrends.yearly_overview || [];
+            const filteredData = selectedYear !== null ? allYearlyData.filter(d => d.annee === selectedYear) : allYearlyData;
+            const yearlyData = filteredData.length > 0 ? filteredData : allYearlyData;
+            tableBody.innerHTML = '';
+            
+            yearlyData.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                const evolution = index > 0 ? 
+                    ((row.employes_uniques - yearlyData[index-1].employes_uniques) / yearlyData[index-1].employes_uniques * 100).toFixed(1) : 
+                    0;
+                const evolutionClass = evolution > 0 ? 'status-excellent' : evolution < 0 ? 'status-faible' : 'status-moyen';
+                const evolutionIcon = evolution > 0 ? '↗' : evolution < 0 ? '↘' : '→';
+                
+                tr.innerHTML = `
+                    <td><strong>${row.annee}</strong></td>
+                    <td>${row.employes_uniques}</td>
+                    <td>${row.total_pointages.toLocaleString()}</td>
+                    <td>${row.total_heures.toLocaleString()}h</td>
+                    <td>${row.heures_moyennes_par_jour}h</td>
+                    <td><span class="status-badge ${evolutionClass}">${evolutionIcon} ${evolution}%</span></td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function createCategoriesTable() {
+            const tableBody = document.querySelector('#categoriesTable tbody');
+            const categoriesData = dashboardData.categories || [];
+            tableBody.innerHTML = '';
+            
+            categoriesData.forEach(row => {
+                const tr = document.createElement('tr');
+                const performance = row.heures_moyennes > 8 ? 'Élevée' : row.heures_moyennes > 6 ? 'Normale' : 'Faible';
+                const perfClass = row.heures_moyennes > 8 ? 'status-excellent' : row.heures_moyennes > 6 ? 'status-moyen' : 'status-faible';
+                
+                tr.innerHTML = `
+                    <td><strong>${row.categorie}</strong></td>
+                    <td>${row.nb_employes}</td>
+                    <td>${row.total_heures.toLocaleString()}h</td>
+                    <td>${row.heures_moyennes}h</td>
+                    <td>${row.total_pointages.toLocaleString()}</td>
+                    <td><span class="status-badge ${perfClass}">${performance}</span></td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function createEfficiencyTable() {
+            const tableBody = document.querySelector('#efficiencyTable tbody');
+            const efficiencyData = dashboardData.efficiency || [];
+            tableBody.innerHTML = '';
+            
+            efficiencyData.forEach(row => {
+                const tr = document.createElement('tr');
+                let statusClass = 'status-faible';
+                let statusText = 'À Améliorer';
+                
+                if (row.score_productivite >= 80) {
+                    statusClass = 'status-excellent';
+                    statusText = 'Excellent';
+                } else if (row.score_productivite >= 60) {
+                    statusClass = 'status-moyen';
+                    statusText = 'Satisfaisant';
+                }
+                
+                tr.innerHTML = `
+                    <td><strong>${row.service}</strong></td>
+                    <td>${row.nb_employes}</td>
+                    <td>${row.score_productivite}%</td>
+                    <td>${row.coefficient_variation}%</td>
+                    <td>${row.pointages_par_employe}</td>
+                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Generate insights
+        function generateInsights() {
+            const container = document.getElementById('insightsContainer');
+            const yearlyData = dashboardData.yearlyTrends.yearly_overview || [];
+            const seasonalData = dashboardData.seasonality;
+            
+            let insights = [
+                {
+                    title: "📊 Vue d'Ensemble",
+                    content: `Le système couvre ${dashboardData.summary.annees_couvertes?.length || 0} années de données avec ${dashboardData.summary.total_pointages?.toLocaleString() || 0} pointages au total.`
+                }
+            ];
+
+            if (yearlyData.length >= 2) {
+                const latestYear = yearlyData[yearlyData.length - 1];
+                const previousYear = yearlyData[yearlyData.length - 2];
+                const growth = ((latestYear.employes_uniques - previousYear.employes_uniques) / previousYear.employes_uniques * 100).toFixed(1);
+                insights.push({
+                    title: growth > 0 ? "📈 Croissance Positive" : "📉 Décroissance",
+                    content: `${growth > 0 ? 'Augmentation' : 'Diminution'} de ${Math.abs(growth)}% du nombre d'employés entre ${previousYear.annee} et ${latestYear.annee} (${previousYear.employes_uniques} → ${latestYear.employes_uniques}).`
+                });
+            }
+
+            if (dashboardData.categories.length > 0) {
+                const mostActive = dashboardData.categories.reduce((max, cat) => 
+                    cat.heures_moyennes > max.heures_moyennes ? cat : max
+                );
+                insights.push({
+                    title: "👔 Catégorie la Plus Active",
+                    content: `La catégorie "${mostActive.categorie}" travaille en moyenne ${mostActive.heures_moyennes}h par jour avec ${mostActive.nb_employes} employés.`
+                });
+            }
+
+            if (dashboardData.efficiency.length > 0) {
+                const mostEfficient = dashboardData.efficiency.reduce((max, serv) => 
+                    (serv.score_productivite || 0) > (max.score_productivite || 0) ? serv : max
+                );
+                insights.push({
+                    title: "🏆 Service le Plus Efficace",
+                    content: `${mostEfficient.service} obtient un score de productivité de ${mostEfficient.score_productivite || 0}% avec ${mostEfficient.nb_employes} employés.`
+                });
+            }
+
+            if (seasonalData.season_summary?.length > 0) {
+                const peakSeason = seasonalData.season_summary.reduce((max, season) => 
+                    season.heures_moyennes > max.heures_moyennes ? season : max
+                );
+                insights.push({
+                    title: "🍂 Saison de Pointe",
+                    content: `${peakSeason.saison} est la saison la plus active avec ${peakSeason.heures_moyennes}h moyennes de travail par jour.`
+                });
+            }
+
+            if (dashboardData.overtime.length > 0) {
+                const highestOvertime = dashboardData.overtime.reduce((max, serv) => 
+                    (serv.taux_heures_sup || 0) > (max.taux_heures_sup || 0) ? serv : max
+                );
+                if (highestOvertime.taux_heures_sup > 0) {
+                    insights.push({
+                        title: "⚠️ Heures Supplémentaires Critiques",
+                        content: `${highestOvertime.libelle_y} a le taux d'heures supplémentaires le plus élevé (${highestOvertime.taux_heures_sup}%) avec ${highestOvertime.heures_sup_moyennes}h supplémentaires moyennes.`
+                    });
+                }
+            }
+
+            if (dashboardData.peakHours.length > 0) {
+                const peakHour = dashboardData.peakHours.reduce((max, hour) => 
+                    (hour.nombre_entrees || hour.mat_pers) > (max.nombre_entrees || max.mat_pers) ? hour : max
+                );
+                insights.push({
+                    title: "🕘 Heure de Pointe",
+                    content: `${peakHour.heure || peakHour.heure_entree_parsee}h00 est l'heure de pointe avec ${(peakHour.nombre_entrees || peakHour.mat_pers).toLocaleString()} entrées enregistrées.`
+                });
+            }
+
+            insights.push({
+                title: "💡 Recommandation Stratégique",
+                content: "Optimisez la couverture de pointage et la gestion des heures supplémentaires pour renforcer la performance organisationnelle."
+            });
+
+            container.innerHTML = insights.map(insight => `
+                <div class="insight-card">
+                    <h4>${insight.title}</h4>
+                    <p>${insight.content}</p>
+                </div>
+            `).join('');
+
+            // Seasonal insights
+            if (seasonalData.season_summary?.length > 0) {
+                const seasonalInsights = document.getElementById('seasonalInsights');
+                if (seasonalInsights) {
+                    seasonalInsights.innerHTML = seasonalData.season_summary.map(season => `
+                        <div class="insight-card">
+                            <h4>🌟 ${season.saison}</h4>
+                            <p>${season.employes_moyens} employés moyens travaillant ${season.heures_moyennes}h par jour</p>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+
+        function showLoader() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+        }
+
+        function hideLoader() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
+
+        // Show section and initialize charts
+        function showTab(tabName) {
+            // Hide all sections and deactivate nav items
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+
+            // Show selected section and activate nav item
+            const tabElement = document.getElementById(tabName);
+            if (tabElement) {
+                tabElement.classList.add('active');
+            }
+
+            const navItem = document.querySelector(`.nav-item[onclick="showTab('${tabName}')"]`);
+            if (navItem) {
+                navItem.classList.add('active');
+            }
+
+            // Initialize charts for the active section
+            setTimeout(() => {
+                if (tabName === 'overview') {
+                    safeCreateChart(createYearlyTrendsCharts, 'Yearly Trends Charts');
+                } else if (tabName === 'hours') {
+                    safeCreateChart(createWorkingHoursCharts, 'Working Hours Charts');
+                } else if (tabName === 'overtime') {
+                    safeCreateChart(createOvertimeCharts, 'Overtime Charts');
+                } else if (tabName === 'patterns') {
+                    safeCreateChart(createPatternCharts, 'Pattern Charts');
+                } else if (tabName === 'categories') {
+                    safeCreateChart(createCategoriesCharts, 'Categories Charts');
+                } else if (tabName === 'efficiency') {
+                    safeCreateChart(createEfficiencyCharts, 'Efficiency Charts');
+                } else if (tabName === 'seasonality') {
+                    safeCreateChart(createSeasonalityCharts, 'Seasonality Charts');
+                }
+            }, 100);
+        }
+
+        // Add error handling for chart creation
+        function safeCreateChart(createFunction, chartName) {
+            try {
+                createFunction();
+            } catch (error) {
+                console.error(`Error creating ${chartName}:`, error);
+            }
+        }
+
+        // Initialize dashboard when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            lottie.loadAnimation({
+                container: document.getElementById('lottie-loader'),
+                renderer: 'svg',
+                loop: true,
+                autoplay: true,
+                path: 'loading.json' // Replace with actual path to your JSON animation
+            });
+            initDashboard();
+        });
+
+        // Add window resize handler to redraw charts
+        window.addEventListener('resize', function() {
+            Object.values(charts).forEach(chart => {
+                if (chart && typeof chart.resize === 'function') {
+                    chart.resize();
+                }
+            });
+        });
+        function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    const toggleBtn = document.getElementById('themeToggle');
+    toggleBtn.textContent = document.body.classList.contains('dark-mode') ? '☀️ Mode Clair' : '🌙 Mode Sombre';
+    // Persist theme preference
+    localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+}
+
+// Load theme on page load
+document.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark-mode');
+        document.getElementById('themeToggle').textContent = '☀️ Mode Clair';
+    }
+});
+    </script>
+</body>
+</html>
