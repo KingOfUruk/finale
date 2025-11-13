@@ -12,3 +12,7 @@ seaborn>=0.12
 plotly>=5.20
 gunicorn>=21.2
 oracledb>=2.0
+redis>=5.0
+celery>=5.4
+python-json-logger>=2.0
+prometheus-flask-exporter>=0.23

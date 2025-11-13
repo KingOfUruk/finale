@@ -9,7 +9,7 @@ from typing import Optional
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-from app.config.database import get_oracle_credentials
+from app.config.database import get_oracle_credentials, build_sqlalchemy_url
 
 
 @dataclass
@@ -18,31 +18,45 @@ class DatabaseConfig:
 
     username: str
     password: str
-    host: str
-    port: int
-    service_name: str
+    host: Optional[str]
+    port: Optional[int]
+    service_name: Optional[str]
     driver: str = "oracle+oracledb"
+    dsn: Optional[str] = None
+    tns_admin: Optional[str] = None
+    wallet_password: Optional[str] = None
 
     @classmethod
     def from_settings(cls) -> "DatabaseConfig":
         creds = get_oracle_credentials()
-        port_val = creds["port"]
+        port_val = creds.get("port")
         if isinstance(port_val, str) and port_val.isdigit():
             port_val = int(port_val)
         return cls(
             username=creds["username"],
             password=creds["password"],
-            host=creds["host"],
+            host=creds.get("host"),
             port=port_val,
-            service_name=creds["service_name"],
+            service_name=creds.get("service_name"),
             driver=creds.get("driver", "oracle+oracledb"),
+            dsn=creds.get("dsn"),
+            tns_admin=creds.get("tns_admin"),
+            wallet_password=creds.get("wallet_password"),
         )
 
     def sqlalchemy_url(self) -> str:
-        return (
-            f"{self.driver}://{self.username}:{self.password}"
-            f"@{self.host}:{self.port}/?service_name={self.service_name}"
-        )
+        credentials = {
+            "username": self.username,
+            "password": self.password,
+            "host": self.host,
+            "port": self.port,
+            "service_name": self.service_name,
+            "driver": self.driver,
+            "dsn": self.dsn,
+            "tns_admin": self.tns_admin,
+            "wallet_password": self.wallet_password,
+        }
+        return build_sqlalchemy_url(credentials)
 
 
 class DataLoader:
@@ -126,4 +140,3 @@ class DataLoader:
             """
         )
         return pd.read_sql(query, self._engine)
-

@@ -2712,25 +2712,62 @@ body.dark-mode .earnings-table td:nth-last-child(2) {
 }
 
 .loading {
+    position: relative;
+    min-height: 200px;
     display: flex;
-    justify-content: center;
     align-items: center;
-    height: 160px;
+    justify-content: center;
+    text-align: center;
+    border-radius: 16px;
+    overflow: hidden;
     color: #1f2a44;
     font-weight: 600;
-    font-size: 1.1rem;
 }
 
-.spinner {
-    font-size: 2.5rem;
-    color: #2dd4bf;
-    margin-right: 12px;
-    animation: spin 2s linear infinite;
+body.dark-mode .loading {
+    background: transparent;
 }
 
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+.loading-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.15), rgba(14, 165, 233, 0.15));
+    filter: blur(120px);
+    z-index: 0;
+}
+
+.payroll-loader {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 12px;
+    color: #1f2a44;
+}
+
+.payroll-loader,
+.payroll-loader p {
+    transition: color 0.2s ease;
+}
+
+body.dark-mode .payroll-loader {
+    color: #e5e7eb;
+}
+.payroll-lottie {
+    width: 200px;
+    height: 200px;
+}
+
+.payroll-loader p {
+    margin: 0;
+    font-size: 1rem;
+    color: inherit;
+}
+
+body.dark-mode .payroll-loader p {
+    color: #e5e7eb;
 }
 
 .error-message {
@@ -3017,10 +3054,6 @@ body.dark-mode .data-table tr:hover {
 
 body.dark-mode .alert-gauge {
     background: #4b5563; /* Darker background for gauge */
-}
-
-body.dark-mode .spinner {
-    color: #14b8a6; /* Teal for spinner in dark mode */
 }
 
 .nav-divider {

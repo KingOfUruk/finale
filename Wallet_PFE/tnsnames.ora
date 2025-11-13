@@ -1,0 +1,12 @@
+pfe_high = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.eu-paris-1.oraclecloud.com))(connect_data=(service_name=gd73ed8184b7596_pfe_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+pfe_low = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.eu-paris-1.oraclecloud.com))(connect_data=(service_name=gd73ed8184b7596_pfe_low.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+pfe_medium = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.eu-paris-1.oraclecloud.com))(connect_data=(service_name=gd73ed8184b7596_pfe_medium.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+pfe_tp = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.eu-paris-1.oraclecloud.com))(connect_data=(service_name=gd73ed8184b7596_pfe_tp.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+pfe_tpurgent = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.eu-paris-1.oraclecloud.com))(connect_data=(service_name=gd73ed8184b7596_pfe_tpurgent.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+
+

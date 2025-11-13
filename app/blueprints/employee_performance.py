@@ -10,8 +10,10 @@ from plotly.subplots import make_subplots
 import numpy as np
 import json
 import plotly
+from threading import Lock
+from functools import wraps
 
-from app.config.database import get_oracle_credentials
+from app.config.database import get_oracle_credentials, build_sqlalchemy_url
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -26,40 +28,76 @@ df_pointage = None
 df_categorie = None
 df_service = None
 employes_actuels = None
+_data_lock = Lock()
+_data_status = {"loaded": False, "error": None}
 
-def init_database():
+
+def init_database(force: bool = False):
     """Initialize database connection and load data"""
     global df_employe, df_pointage, df_categorie, df_service, employes_actuels
     
-    try:
-        credentials = get_oracle_credentials()
-        driver = credentials.get('driver', 'oracle+oracledb')
-        port = str(credentials.get('port', '1521'))
-        connection_string = (
-            f"{driver}://{credentials['username']}:{credentials['password']}"
-            f"@{credentials['host']}:{port}/?service_name={credentials['service_name']}"
-        )
-        engine = create_engine(connection_string)
+    with _data_lock:
+        if _data_status["loaded"] and not force:
+            return True
+        try:
+            credentials = get_oracle_credentials()
+            connection_string = build_sqlalchemy_url(credentials)
+            engine = create_engine(connection_string)
+            
+            # Test connection
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1 FROM dual"))
         
-        # Test connection
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1 FROM dual"))
-        
-        # Load data
-        logging.info("Loading data from Oracle database...")
-        df_employe = pd.read_sql("SELECT mat_pers, sexe, dat_nais, dat_emb, etat_civil, nbre_enf, cod_cat, code_serv FROM DIM_EMPLOYE", engine)
-        df_pointage = pd.read_sql("SELECT mat_pers, date_point FROM FAIT_POINTAGE", engine)
-        df_categorie = pd.read_sql("SELECT cod_cat, lib_cat FROM DIM_CATEGORIE", engine)
-        df_service = pd.read_sql("SELECT code_serv, libelle FROM DIM_SERVICE", engine)
-        
-        # Process data
-        process_data()
-        logging.info("Data loaded and processed successfully")
+            # Load data
+            logging.info("Loading data from Oracle database...")
+            df_employe = pd.read_sql("SELECT mat_pers, sexe, dat_nais, dat_emb, etat_civil, nbre_enf, cod_cat, code_serv FROM DIM_EMPLOYE", engine)
+            df_pointage = pd.read_sql("SELECT mat_pers, date_point FROM FAIT_POINTAGE", engine)
+            df_categorie = pd.read_sql("SELECT cod_cat, lib_cat FROM DIM_CATEGORIE", engine)
+            df_service = pd.read_sql("SELECT code_serv, libelle FROM DIM_SERVICE", engine)
+            
+            # Process data
+            process_data()
+            logging.info("Data loaded and processed successfully")
+            _data_status["loaded"] = True
+            _data_status["error"] = None
+            return True
+            
+        except Exception as e:
+            logging.error(f"Database initialization failed: {str(e)}")
+            _data_status["loaded"] = False
+            _data_status["error"] = str(e)
+            return False
+
+
+def ensure_data_loaded() -> bool:
+    """Ensure HR data is available before serving requests."""
+    if _data_status["loaded"]:
         return True
-        
-    except Exception as e:
-        logging.error(f"Database initialization failed: {str(e)}")
-        return False
+    return init_database()
+
+
+def _guard_data_ready_response():
+    if ensure_data_loaded():
+        return None
+    return jsonify({'error': _data_status.get("error", "HR data unavailable")}), 503
+
+
+def require_hr_data(func):
+    """Decorator ensuring HR analytics data is ready before executing the handler."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        guard = _guard_data_ready_response()
+        if guard:
+            return guard
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@employee_performance_bp.before_app_request
+def _warm_employee_performance_cache():
+    """Prime data lazily before endpoints run."""
+    ensure_data_loaded()
 
 def process_data():
     """Process and clean the HR data"""
@@ -76,7 +114,7 @@ def process_data():
     df_employe['dat_nais'] = pd.to_datetime(df_employe['dat_nais'], errors='coerce')
     df_employe['dat_emb'] = pd.to_datetime(df_employe['dat_emb'], errors='coerce')
     
-    current_date = datetime(2025, 8, 8)
+    current_date = datetime.utcnow()
     
     # Normalize categorical data
     df_employe['sexe'] = df_employe['sexe'].str.upper().map({
@@ -139,9 +177,15 @@ def process_data():
 @employee_performance_bp.route('/employee_performance')
 def employee_performance_dashboard():
     """Render the Employee Performance dashboard"""
-    return render_template('employee_performance.html')
+    data_ready = ensure_data_loaded()
+    return render_template(
+        'employee_performance.html',
+        data_ready=data_ready,
+        data_error=_data_status.get("error"),
+    )
 
 @employee_performance_bp.route('/api/overview')
+@require_hr_data
 def get_overview():
     """Get overview statistics"""
     try:
@@ -165,6 +209,7 @@ def get_overview():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/civil_status_chart')
+@require_hr_data
 def civil_status_chart():
     """Generate civil status pie chart"""
     try:
@@ -210,6 +255,7 @@ def civil_status_chart():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/age_pyramid')
+@require_hr_data
 def age_pyramid():
     """Generate age pyramid"""
     try:
@@ -287,6 +333,7 @@ def age_pyramid():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/hiring_trend')
+@require_hr_data
 def hiring_trend():
     """Generate hiring trend chart"""
     try:
@@ -341,6 +388,7 @@ def hiring_trend():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/service_category')
+@require_hr_data
 def service_category():
     """Generate service/category distribution chart"""
     try:
@@ -402,6 +450,7 @@ def service_category():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/gender_distribution')
+@require_hr_data
 def gender_distribution():
     """Get gender distribution data"""
     try:
@@ -421,6 +470,7 @@ def gender_distribution():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/children_distribution')
+@require_hr_data
 def children_distribution():
     """Generate children distribution chart"""
     try:
@@ -460,6 +510,7 @@ def children_distribution():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/seniority_analysis')
+@require_hr_data
 def seniority_analysis():
     """Get seniority analysis data"""
     try:
@@ -492,6 +543,7 @@ def seniority_analysis():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/seniority_by_service')
+@require_hr_data
 def seniority_by_service():
     """Generate seniority distribution by service chart"""
     try:
@@ -564,6 +616,7 @@ def seniority_by_service():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/seniority_by_gender')
+@require_hr_data
 def seniority_by_gender():
     """Generate seniority by service and gender chart"""
     try:
@@ -622,6 +675,7 @@ def seniority_by_gender():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/gender_evolution')
+@require_hr_data
 def gender_evolution():
     """Generate gender diversity evolution over time"""
     try:
@@ -669,6 +723,7 @@ def gender_evolution():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/turnover_analysis')
+@require_hr_data
 def turnover_analysis():
     """Generate turnover analysis chart"""
     try:
@@ -753,6 +808,7 @@ def turnover_analysis():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/age_distribution_by_gender')
+@require_hr_data
 def age_distribution_by_gender():
     """Generate age distribution by gender chart"""
     try:
@@ -814,6 +870,7 @@ def age_distribution_by_gender():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/data_completeness')
+@require_hr_data
 def data_completeness():
     """Generate data completeness heatmap"""
     try:
@@ -865,6 +922,7 @@ def data_completeness():
         return jsonify({'error': str(e)}), 500
 
 @employee_performance_bp.route('/api/top_services')
+@require_hr_data
 def top_services():
     """Get top 5 services by employee count"""
     try:
@@ -902,7 +960,7 @@ def top_services():
 def refresh_data():
     """Refresh data from database"""
     try:
-        success = init_database()
+        success = init_database(force=True)
         if success:
             return jsonify({'success': True, 'message': 'Data refreshed successfully'})
         else:
@@ -911,5 +969,3 @@ def refresh_data():
         logging.error(f"Error in refresh_data: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# Initialize database on module load
-init_database()

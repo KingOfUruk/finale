@@ -1,62 +1,60 @@
 from __future__ import annotations
 
-from pathlib import Path
+import logging
 from typing import Optional
 
 import pandas as pd
+from celery import states
+from celery.result import AsyncResult
 from flask import Blueprint, jsonify, request
 
-from ml.compensation_benchmark import benchmark_services, prepare_dataset as prepare_compensation_data, train_model as train_compensation_model
-from ml.payroll_forecast import forecast as forecast_payroll, prepare_dataset as prepare_payroll_data, train_model as train_payroll_model
+from celery_app import celery
+from ml.compensation_benchmark import benchmark_services, prepare_dataset as prepare_compensation_data
+from ml.payroll_forecast import forecast as forecast_payroll, prepare_dataset as prepare_payroll_data
 from ml.scenario_simulator import ScenarioInput, simulate_compensation_adjustment, simulate_payroll_impact
-from ml.staffing_forecast import forecast_staffing, get_dataset as prepare_staffing_data, train_model as train_staffing_model
-from ml import MODELS_DIR
+from ml.staffing_forecast import forecast_staffing, get_dataset as prepare_staffing_data
 from ml.data_loader import DataLoader
+from ml.tasks import train_all_models
 
 ml_bp = Blueprint("ml", __name__, url_prefix="/api/ml")
-
-
-def _get_models_dir() -> Path:
-    path = Path(MODELS_DIR)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
 
 
 @ml_bp.route("/train", methods=["POST"])
 def trigger_training():
     """
-    Lance l'entraînement de l'ensemble des modèles.
+    Lance l'entraînement de l'ensemble des modèles en tâche de fond.
     Optionnellement, accepter un champ JSON {"start_year": 2020}.
     """
     payload = request.get_json(silent=True) or {}
     start_year = payload.get("start_year")
-    loader = DataLoader()
-    models_dir = _get_models_dir()
+    async_result = train_all_models.delay(start_year=start_year)
+    logging.info("Training job %s scheduled (start_year=%s)", async_result.id, start_year)
+    return jsonify({"job_id": async_result.id}), 202
 
-    summary = {}
 
-    staffing_df = prepare_staffing_data(loader, start_year=start_year)
-    if staffing_df.empty:
-        summary["staffing"] = "aucune donnée"
+@ml_bp.route("/train/<job_id>", methods=["GET"])
+def get_training_status(job_id: str):
+    """Retourne l'état du job d'entraînement."""
+    result = AsyncResult(job_id, app=celery)
+    if result.state == states.PENDING:
+        payload = {"job_id": job_id, "status": "queued"}
+    elif result.state == states.STARTED:
+        payload = {"job_id": job_id, "status": "running"}
+    elif result.state == states.SUCCESS:
+        payload = {
+            "job_id": job_id,
+            "status": "finished",
+            "result": result.result,
+        }
+    elif result.state == states.FAILURE:
+        payload = {
+            "job_id": job_id,
+            "status": "failed",
+            "error": str(result.info),
+        }
     else:
-        _, mae = train_staffing_model(staffing_df, model_path=models_dir / "staffing_forecast.pkl")
-        summary["staffing"] = {"mae": mae, "rows": int(len(staffing_df))}
-
-    compensation_df = prepare_compensation_data(loader, start_year=start_year)
-    if compensation_df.empty:
-        summary["compensation"] = "aucune donnée"
-    else:
-        _, metrics = train_compensation_model(compensation_df, model_path=models_dir / "compensation_benchmark.pkl")
-        summary["compensation"] = {"mae": metrics["mae"], "r2": metrics["r2"], "rows": int(len(compensation_df))}
-
-    payroll_df = prepare_payroll_data(loader)
-    if payroll_df.empty:
-        summary["payroll"] = "aucune série paie"
-    else:
-        _, mae = train_payroll_model(payroll_df, model_path=models_dir / "payroll_forecast.pkl")
-        summary["payroll"] = {"mae": mae, "rows": int(len(payroll_df))}
-
-    return jsonify(summary)
+        payload = {"job_id": job_id, "status": result.state.lower()}
+    return jsonify(payload)
 
 
 @ml_bp.route("/staffing_forecast", methods=["GET"])

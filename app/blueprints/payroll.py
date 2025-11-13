@@ -19,8 +19,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import (ListFlowable, ListItem, Paragraph,
                                 SimpleDocTemplate, Spacer, Table, TableStyle)
 
-from app.config.database import get_oracle_credentials
-from app.oracle_helpers import make_dsn
+from app.config.database import get_oracle_credentials, build_sqlalchemy_url
 
 # Blueprint configuration
 payroll_bp = Blueprint("payroll", __name__, template_folder="templates")
@@ -100,26 +99,7 @@ class PayrollDataService:
 
     def __post_init__(self) -> None:
         creds = self.config or get_oracle_credentials()
-        port_value = creds.get("port")
-        if isinstance(port_value, str) and port_value.isdigit():
-            port_value = int(port_value)
-        try:
-            dsn = make_dsn(
-                creds["host"],
-                port_value,
-                creds["service_name"],
-            )
-        except RuntimeError as exc:
-            self.initialization_error = str(exc)
-            self.connection_string = ""
-            self.engine = None
-            logger.error("Pilote Oracle indisponible : %s", exc)
-            return
-
-        driver = creds.get("driver", "oracle+oracledb")
-        self.connection_string = (
-            f"{driver}://{creds['username']}:{creds['password']}@{dsn}"
-        )
+        self.connection_string = build_sqlalchemy_url(creds)
         self.engine: Optional[sqlalchemy.Engine] = None
         self.connect()
 

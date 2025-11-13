@@ -6,6 +6,7 @@
     <title>Dashboard Paie</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.10.2/lottie.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/payroll.css') }}">
 </head>
 <body>
@@ -70,7 +71,10 @@
                     <div class="section-title">📊 Résumé rapide</div>
                 </div>
                 <div class="kpi-grid" id="summaryKPIs">
-                    <div class="loading"><div class="spinner"></div>Chargement...</div>
+                    <div class="loading">
+                        <div class="loading-bg"></div>
+                        <div class="payroll-loader" data-message="Chargement des indicateurs..."></div>
+                    </div>
                 </div>
             </div>
 
@@ -82,7 +86,10 @@
                     </div>
             </div>
             <div class="kpi-grid" id="overviewKPIs">
-                <div class="loading"><div class="spinner"></div>Chargement...</div>
+                <div class="loading">
+                    <div class="loading-bg"></div>
+                    <div class="payroll-loader" data-message="Chargement des KPI..."></div>
+                </div>
             </div>
             <div class="anomaly-panel" id="overviewAnomalies"></div>
             <div class="charts-section">
@@ -166,14 +173,20 @@
                     </div>
                 </div>
                 <div class="breakdown-table" id="employeeBreakdownTable">
-                    <div class="loading"><div class="spinner"></div>Chargement...</div>
+                    <div class="loading">
+                        <div class="loading-bg"></div>
+                        <div class="payroll-loader" data-message="Analyse en cours..."></div>
+                    </div>
                 </div>
             </div>
                 <div class="section-header">
                     <div class="section-title">🏢 Salaires par service</div>
                 </div>
                 <div class="service-salaries-container" id="serviceSalariesContainer">
-                    <div class="loading"><div class="spinner"></div>Chargement...</div>
+                    <div class="loading">
+                        <div class="loading-bg"></div>
+                        <div class="payroll-loader" data-message="Chargement des services..."></div>
+                    </div>
                 </div>
                 <div class="section-header">
                     <div class="section-title">🎁 Top primes</div>
@@ -188,7 +201,12 @@
                     <div class="section-subtitle">Structure démographique et services</div>
                 </div>
             </div>
-            <div class="kpi-grid" id="workforceKPIs"></div>
+            <div class="kpi-grid" id="workforceKPIs">
+                <div class="loading">
+                    <div class="loading-bg"></div>
+                    <div class="payroll-loader" data-message="Chargement des effectifs..."></div>
+                </div>
+            </div>
             <div class="headcount-breakdown">
                 <div class="headcount-card">
                     <div class="headcount-title">Effectifs par service</div>
@@ -223,7 +241,10 @@
                     </div>
                 </div>
                 <div class="kpi-grid" id="financialKPIs">
-                    <div class="loading"><div class="spinner"></div>Chargement...</div>
+                    <div class="loading">
+                        <div class="loading-bg"></div>
+                        <div class="payroll-loader" data-message="Chargement des KPIs financiers..."></div>
+                    </div>
                 </div>
             <div class="charts-section">
                 <div class="chart-container">
@@ -255,7 +276,10 @@
                 </div>
             </div>
             <div class="forecast-summary" id="forecastSummary">
-                <div class="loading"><div class="spinner"></div>Calcul des projections...</div>
+                <div class="loading">
+                    <div class="loading-bg"></div>
+                    <div class="payroll-loader" data-message="Calcul des projections..."></div>
+                </div>
             </div>
             <div class="charts-section">
                 <div class="chart-container">
@@ -399,7 +423,34 @@ function applyTheme() {
     }
 }
 
+function initPayrollLoaders(context = document) {
+    if (typeof lottie === 'undefined') {
+        return;
+    }
+    context.querySelectorAll('.payroll-loader').forEach(loader => {
+        if (loader.dataset.initialized === 'true') {
+            return;
+        }
+        loader.dataset.initialized = 'true';
+        const holder = document.createElement('div');
+        holder.className = 'payroll-lottie';
+        loader.appendChild(holder);
+        const message = document.createElement('p');
+        message.textContent = loader.dataset.message || 'Chargement...';
+        loader.appendChild(message);
+
+        lottie.loadAnimation({
+            container: holder,
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            path: "{{ url_for('static', filename='Cred tick animation/animations/8423b319-eb5b-4189-aec9-759510b9ab15.json') }}"
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+    initPayrollLoaders(document);
     initializeTheme();
     await loadAvailableYears();
     addChatMessage('assistant', "Bonjour ! Posez-moi vos questions sur la paie, les charges ou les effectifs.");
@@ -1952,7 +2003,8 @@ function renderTopEarners(data) {
 function generateSummaryKPIs() {
     const container = document.getElementById('summaryKPIs');
     if (!dashboardData.overview || !dashboardData.financial || !dashboardData.salary) {
-        container.innerHTML = '<div class="loading"><div class="spinner"></div>Chargement...</div>';
+        container.innerHTML = '<div class="loading"><div class="loading-bg"></div><div class="payroll-loader" data-message="Chargement..."></div></div>';
+        initPayrollLoaders(container);
         return;
     }
     container.innerHTML = `

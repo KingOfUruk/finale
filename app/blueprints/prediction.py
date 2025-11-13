@@ -12,8 +12,7 @@ import seaborn as sns
 import pickle
 import warnings
 import os
-from app.config.database import get_oracle_credentials
-from app.oracle_helpers import make_dsn
+from app.config.database import get_oracle_credentials, build_sqlalchemy_url
 
 warnings.filterwarnings('ignore')
 
@@ -53,14 +52,7 @@ class EnhancedPayrollPredictiveModel:
     def connect_db(self):
         """Connect to Oracle database"""
         try:
-            port_value = int(self.db_config['port']) if str(self.db_config['port']).isdigit() else self.db_config['port']
-            dsn = make_dsn(
-                self.db_config['host'],
-                port_value,
-                self.db_config['service_name']
-            )
-            driver = self.db_config.get('driver', 'oracle+oracledb')
-            connection_string = f"{driver}://{self.db_config['username']}:{self.db_config['password']}@{dsn}"
+            connection_string = build_sqlalchemy_url(self.db_config)
             self.engine = sqlalchemy.create_engine(connection_string)
             
             with self.engine.connect() as conn:

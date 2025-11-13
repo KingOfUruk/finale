@@ -1,4 +1,5 @@
 # Secure Login System
+from __future__ import annotations
 from flask import Blueprint, render_template, request, session, flash, jsonify, redirect, url_for, abort
 import logging
 import secrets
@@ -6,6 +7,8 @@ import time
 from werkzeug.security import check_password_hash
 from functools import wraps
 import os
+import json
+from threading import Lock
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from app.config.database import get_oracle_credentials
@@ -22,16 +25,81 @@ logging.basicConfig(
 login_bp = Blueprint('login', __name__)
 
 # Security Configuration
-SECRET_KEY = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 SESSION_TIMEOUT = 3600  # 1 hour
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION = 900  # 15 minutes
 PASSWORD_MIN_LENGTH = 8
 ADMIN_USERS = {user.strip() for user in os.getenv('ADMIN_USERS', 'visitor').split(',') if user.strip()}
 
-# In-memory storage for failed attempts (in production, use Redis)
-failed_attempts = {}
-account_lockouts = {}
+# Login attempt tracking backend (defaults to in-memory, optional Redis)
+
+
+class LoginAttemptStore:
+    """Stateful store for login attempts with optional Redis backend."""
+
+    def __init__(self):
+        self._memory: dict[str, dict[str, float]] = {}
+        self._memory_lock = Lock()
+        self._redis = None
+        redis_url = os.getenv("LOGIN_STATE_REDIS_URL")
+        if redis_url:
+            try:
+                import redis  # type: ignore
+            except ImportError:
+                logging.warning(
+                    "LOGIN_STATE_REDIS_URL is set but the 'redis' package is not installed. "
+                    "Falling back to in-memory login throttling."
+                )
+            else:
+                self._redis = redis.Redis.from_url(redis_url, decode_responses=True)
+
+    @staticmethod
+    def _ttl() -> int:
+        return int(max(LOCKOUT_DURATION, 60))
+
+    def _purge_if_expired(self, key: str):
+        entry = self._memory.get(key)
+        if not entry:
+            return None
+        expires_at = entry.get("_expires_at")
+        if expires_at and expires_at <= time.time():
+            self._memory.pop(key, None)
+            return None
+        return entry
+
+    def get(self, key: str):
+        if self._redis:
+            raw = self._redis.get(key)
+            return json.loads(raw) if raw else None
+        with self._memory_lock:
+            entry = self._purge_if_expired(key)
+            if not entry:
+                return None
+            record = dict(entry)
+            record.pop("_expires_at", None)
+            return record
+
+    def set(self, key: str, value: dict):
+        payload = json.dumps(value)
+        ttl = self._ttl()
+        if self._redis:
+            self._redis.setex(key, ttl, payload)
+            return
+        with self._memory_lock:
+            clone = dict(value)
+            clone["_expires_at"] = time.time() + ttl
+            self._memory[key] = clone
+
+    def delete(self, key: str):
+        if self._redis:
+            self._redis.delete(key)
+            return
+        with self._memory_lock:
+            self._memory.pop(key, None)
+
+
+attempt_store = LoginAttemptStore()
+_access_log_ready = False
 
 # Rate limiting configuration
 limiter = Limiter(
@@ -54,48 +122,53 @@ def get_db_connection():
         flash(f"Database connection error: {e}", "error")
         return None
 
+def _attempt_key(username: str, ip_address: str) -> str:
+    return f"{username}:{ip_address}"
+
+
 def is_account_locked(username, ip_address):
     """Check if account is locked due to too many failed attempts"""
-    key = f"{username}:{ip_address}"
-    current_time = time.time()
-    
-    if key in account_lockouts:
-        if current_time < account_lockouts[key]:
-            return True
-        else:
-            # Lockout expired, remove it
-            del account_lockouts[key]
-            if key in failed_attempts:
-                del failed_attempts[key]
-    
+    key = _attempt_key(username, ip_address)
+    record = attempt_store.get(key)
+    if not record:
+        return False
+
+    lock_expires = record.get("lock_expires", 0)
+    if lock_expires and time.time() < lock_expires:
+        return True
+
+    if lock_expires:
+        attempt_store.delete(key)
     return False
+
 
 def record_failed_attempt(username, ip_address):
     """Record a failed login attempt"""
-    key = f"{username}:{ip_address}"
+    key = _attempt_key(username, ip_address)
     current_time = time.time()
-    
-    if key not in failed_attempts:
-        failed_attempts[key] = {'count': 0, 'first_attempt': current_time}
-    
-    failed_attempts[key]['count'] += 1
-    failed_attempts[key]['last_attempt'] = current_time
-    
-    # If too many attempts, lock the account
-    if failed_attempts[key]['count'] >= MAX_LOGIN_ATTEMPTS:
-        account_lockouts[key] = current_time + LOCKOUT_DURATION
-        logging.warning(f"Account locked for {username} from {ip_address} due to {failed_attempts[key]['count']} failed attempts")
+    record = attempt_store.get(key) or {'count': 0, 'first_attempt': current_time}
+    record['count'] += 1
+    record['last_attempt'] = current_time
+
+    if record['count'] >= MAX_LOGIN_ATTEMPTS:
+        record['lock_expires'] = current_time + LOCKOUT_DURATION
+        attempt_store.set(key, record)
+        logging.warning(
+            "Account locked for %s from %s due to %s failed attempts",
+            username,
+            ip_address,
+            record['count'],
+        )
         return True
-    
+
+    attempt_store.set(key, record)
     return False
+
 
 def clear_failed_attempts(username, ip_address):
     """Clear failed attempts after successful login"""
-    key = f"{username}:{ip_address}"
-    if key in failed_attempts:
-        del failed_attempts[key]
-    if key in account_lockouts:
-        del account_lockouts[key]
+    key = _attempt_key(username, ip_address)
+    attempt_store.delete(key)
 
 def validate_input(username, password):
     """Validate input for security"""
@@ -183,7 +256,6 @@ def log_user_access(connection, username, event_type, ip_address=None, user_agen
     if connection is None:
         return
     try:
-        ensure_access_log_table(connection)
         cursor = connection.cursor()
         cursor.execute(
             """
@@ -201,6 +273,23 @@ def log_user_access(connection, username, event_type, ip_address=None, user_agen
         cursor.close()
     except Exception as exc:
         logging.error(f"Erreur lors de l'enregistrement de l'accès utilisateur : {exc}")
+
+
+@login_bp.before_app_request
+def initialize_access_log_table():
+    """Create the access log table once when the first login request hits."""
+    global _access_log_ready
+    if _access_log_ready:
+        return
+    connection = get_db_connection()
+    if not connection:
+        logging.error("Impossible d'initialiser user_access_log faute de connexion DB")
+        return
+    try:
+        ensure_access_log_table(connection)
+        _access_log_ready = True
+    finally:
+        connection.close()
 
 def require_admin(f):
     """Decorator to require administrator privileges."""

@@ -6,6 +6,7 @@ actionable error messages when the Oracle driver is missing.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict
 
 try:  # pragma: no cover - runtime environment dependent
@@ -46,12 +47,32 @@ def create_connection_from_credentials(credentials: Dict[str, str]):
     """Create an Oracle connection using a credentials dictionary."""
 
     driver = _require_driver()
-    dsn = f"{credentials['host']}:{credentials['port']}/{credentials['service_name']}"
-    return driver.connect(
-        user=credentials['username'],
-        password=credentials['password'],
-        dsn=dsn,
-    )
+    connect_kwargs = {
+        "user": credentials["username"],
+        "password": credentials["password"],
+    }
+
+    tns_admin = credentials.get("tns_admin")
+    if tns_admin:
+        os.environ.setdefault("TNS_ADMIN", tns_admin)
+        connect_kwargs.setdefault("config_dir", tns_admin)
+        connect_kwargs.setdefault("wallet_location", tns_admin)
+
+    connect_descriptor = credentials.get("connect_descriptor")
+    dsn_alias = credentials.get("dsn")
+    if connect_descriptor:
+        connect_kwargs["dsn"] = connect_descriptor
+    elif dsn_alias:
+        connect_kwargs["dsn"] = dsn_alias
+    else:
+        dsn = f"{credentials['host']}:{credentials['port']}/{credentials['service_name']}"
+        connect_kwargs["dsn"] = dsn
+
+    wallet_password = credentials.get("wallet_password")
+    if wallet_password:
+        connect_kwargs["wallet_password"] = wallet_password
+
+    return driver.connect(**connect_kwargs)
 
 
 def make_dsn(host: str, port: str, service_name: str) -> str:
