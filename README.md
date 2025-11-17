@@ -32,6 +32,10 @@ API ML) connectés à Oracle Autonomous Database via wallet/DSN.
   l'application Flask existante. Fournissez les secrets Oracle/Redis via le
   dashboard Vercel et assurez-vous que le wallet (`Wallet_PFE`) accompagne le
   build si vous utilisez l'ADB.
+- **Railway** : `Dockerfile` est détecté automatiquement par Railway. Le guide
+  `docs/deploying-to-railway.md` décrit l'import du dépôt, la configuration des
+  variables d'environnement, l'utilisation du wallet et le lancement éventuel
+  d'un service Celery séparé.
 - **Render** : `render.yaml` et `runtime.txt` décrivent le service Flask + le
   worker Celery. Ajoutez les secrets dans le dashboard et fournissez le wallet
   (volume ou script base64).
