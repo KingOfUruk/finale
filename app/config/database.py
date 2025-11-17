@@ -13,6 +13,8 @@ from typing import Dict
 from urllib.parse import urlencode
 
 _ENV_FILE_LOADED = False
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_WALLET_DIR = _PROJECT_ROOT / "Wallet_PFE"
 
 
 def _load_env_file_once() -> None:
@@ -20,7 +22,7 @@ def _load_env_file_once() -> None:
     global _ENV_FILE_LOADED
     if _ENV_FILE_LOADED:
         return
-    env_path = Path(__file__).resolve().parents[2] / ".env"
+    env_path = _PROJECT_ROOT / ".env"
     if env_path.exists():
         with env_path.open("r", encoding="utf-8") as env_file:
             for raw_line in env_file:
@@ -73,6 +75,10 @@ def get_oracle_credentials() -> Dict[str, str]:
         port = port or _read_required("ORACLE_PORT")
         service_name = service_name or _read_required("ORACLE_SERVICE_NAME")
 
+    tns_admin = os.getenv("ORACLE_TNS_ADMIN")
+    if not tns_admin and _DEFAULT_WALLET_DIR.exists():
+        tns_admin = str(_DEFAULT_WALLET_DIR)
+
     return {
         "username": username,
         "password": password,
@@ -82,7 +88,7 @@ def get_oracle_credentials() -> Dict[str, str]:
         "connect_descriptor": connect_descriptor,
         "driver": os.getenv("ORACLE_DRIVER", "oracle+oracledb"),
         "dsn": dsn,
-        "tns_admin": os.getenv("ORACLE_TNS_ADMIN"),
+        "tns_admin": tns_admin,
         "wallet_password": os.getenv("ORACLE_WALLET_PASSWORD"),
     }
 

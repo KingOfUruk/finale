@@ -2303,9 +2303,50 @@ function buildChatResponse(message) {
     return "Je peux vous renseigner sur la masse salariale, les primes, les charges, les anomalies ou encore les effectifs. N'hésitez pas à poser une question plus précise.";
 }
 
+function collectDashboardCharts() {
+    const charts = [];
+    document.querySelectorAll('canvas').forEach(canvas => {
+        if (!canvas.width || !canvas.height) {
+            return;
+        }
+        try {
+            const containerTitle = canvas.closest('.chart-container')?.querySelector('.chart-title');
+            const inlineTitle = canvas.previousElementSibling && canvas.previousElementSibling.classList?.contains('chart-title')
+                ? canvas.previousElementSibling
+                : null;
+            const sectionTitle = canvas.closest('.section-card')?.querySelector('.section-title');
+            const title = (
+                containerTitle?.textContent ||
+                inlineTitle?.textContent ||
+                sectionTitle?.textContent ||
+                canvas.dataset.title ||
+                canvas.id ||
+                'Graphique'
+            ).trim();
+            charts.push({
+                id: canvas.id,
+                title,
+                image: canvas.toDataURL('image/png'),
+                width: canvas.width,
+                height: canvas.height,
+            });
+        } catch (error) {
+            console.warn('Impossible de capturer le canvas', canvas.id, error);
+        }
+    });
+    return charts;
+}
+
 async function exportData() {
     try {
-        const response = await fetch(`${API_BASE_URL}/export/pdf${currentYear ? `?year=${currentYear}` : ''}`);
+        const chartImages = collectDashboardCharts();
+        const response = await fetch(`${API_BASE_URL}/export/pdf${currentYear ? `?year=${currentYear}` : ''}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ charts: chartImages }),
+        });
         if (!response.ok) {
             const data = await response.json();
             throw new Error(data.error || 'Export impossible');

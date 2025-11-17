@@ -641,17 +641,78 @@
             showTab(activeTabId);
         }
 
-        async function refreshDashboard() {
-            showLoader();
-            try {
-                await loadDashboardData(selectedYear, { forceAll: selectedYear === null });
-            } catch (error) {
-                console.error('Erreur lors du rafraîchissement du tableau de bord:', error);
-            } finally {
-                hideLoader();
-                document.getElementById('dashboardContent').style.display = 'block';
-            }
+async function refreshDashboard() {
+    showLoader();
+    try {
+        await loadDashboardData(selectedYear, { forceAll: selectedYear === null });
+    } catch (error) {
+        console.error('Erreur lors du rafraîchissement du tableau de bord:', error);
+    } finally {
+        hideLoader();
+        document.getElementById('dashboardContent').style.display = 'block';
+    }
+}
+
+function buildIndividualCacheKey() {
+    return JSON.stringify({
+        year: selectedYear,
+        service: headerFilters.service || '',
+        monthStart: headerFilters.monthStart || '',
+        monthEnd: headerFilters.monthEnd || ''
+    });
+}
+
+async function ensureIndividualData(force = false) {
+    const cacheKey = buildIndividualCacheKey();
+    if (!force && dashboardData.individualPresence && individualPresenceKey === cacheKey) {
+        return dashboardData.individualPresence;
+    }
+    if (!force && individualPresenceCache[cacheKey]) {
+        dashboardData.individualPresence = individualPresenceCache[cacheKey];
+        individualPresenceKey = cacheKey;
+        return dashboardData.individualPresence;
+    }
+    if (individualDataLoading) {
+        return dashboardData.individualPresence;
+    }
+    individualDataLoading = true;
+    try {
+        const params = new URLSearchParams();
+        if (typeof selectedYear === 'number' && !Number.isNaN(selectedYear)) {
+            params.append('year', selectedYear);
         }
+        if (headerFilters.service) {
+            params.append('service', headerFilters.service);
+        }
+        if (headerFilters.monthStart) {
+            params.append('month_from', headerFilters.monthStart);
+        }
+        if (headerFilters.monthEnd) {
+            params.append('month_to', headerFilters.monthEnd);
+        }
+        const response = await axios.get(`/api/dashboard/individual_presence?${params.toString()}`);
+        const payload = response.data || {};
+        individualPresenceCache[cacheKey] = payload;
+        dashboardData.individualPresence = payload;
+        individualPresenceKey = cacheKey;
+        return payload;
+    } catch (error) {
+        console.error('Erreur lors du chargement de la présence individuelle:', error);
+        showIndividualError('Impossible de charger les données employés pour le moment.');
+        throw error;
+    } finally {
+        individualDataLoading = false;
+    }
+}
+
+async function loadIndividualSection(force = false) {
+    try {
+        await ensureIndividualData(force);
+        createIndividualTables();
+    } catch (error) {
+        console.error('Impossible de rendre la section Employés:', error);
+    }
+}
 
         function populateYearSelector(summary) {
             const select = document.getElementById('yearSelect');

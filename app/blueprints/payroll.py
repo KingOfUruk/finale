@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 import logging
 from dataclasses import dataclass, field
@@ -16,8 +17,9 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import (ListFlowable, ListItem, Paragraph,
-                                SimpleDocTemplate, Spacer, Table, TableStyle)
+from reportlab.platypus import (Image, ListFlowable, ListItem, PageBreak,
+                                Paragraph, SimpleDocTemplate, Spacer, Table,
+                                TableStyle)
 
 from app.config.database import get_oracle_credentials, build_sqlalchemy_url
 
@@ -1246,7 +1248,48 @@ def _compute_historical_trends(df: pd.DataFrame) -> Dict[str, List[float]]:
     }
 
 
-def _build_pdf_report(year: Optional[int], overview: Dict[str, float], salary: Dict[str, Dict[str, float]], financial: Dict[str, Dict[str, float]]) -> io.BytesIO:
+MAX_CHARTS_IN_REPORT = 12
+
+
+def _data_url_to_buffer(data_url: str) -> Optional[io.BytesIO]:
+    if not isinstance(data_url, str) or "," not in data_url:
+        return None
+    header, encoded = data_url.split(",", 1)
+    if ";base64" not in header:
+        return None
+    try:
+        binary = base64.b64decode(encoded)
+    except (base64.binascii.Error, ValueError):
+        return None
+    buffer = io.BytesIO(binary)
+    buffer.seek(0)
+    return buffer
+
+
+def _prepare_chart_images(charts: Optional[List[Dict[str, object]]]) -> List[Dict[str, object]]:
+    prepared: List[Dict[str, object]] = []
+    if not charts:
+        return prepared
+    for chart in charts:
+        buffer = _data_url_to_buffer(chart.get("image", ""))
+        if not buffer:
+            continue
+        width = _safe_float(chart.get("width"))
+        height = _safe_float(chart.get("height"))
+        prepared.append(
+            {
+                "title": str(chart.get("title") or "Graphique"),
+                "buffer": buffer,
+                "width": width if width > 0 else 1200.0,
+                "height": height if height > 0 else 600.0,
+            }
+        )
+        if len(prepared) >= MAX_CHARTS_IN_REPORT:
+            break
+    return prepared
+
+
+def _build_pdf_report(year: Optional[int], overview: Dict[str, float], salary: Dict[str, Dict[str, float]], financial: Dict[str, Dict[str, float]], charts: Optional[List[Dict[str, object]]] = None) -> io.BytesIO:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     styles = getSampleStyleSheet()
@@ -1431,6 +1474,24 @@ def _build_pdf_report(year: Optional[int], overview: Dict[str, float], salary: D
         story.append(Paragraph("Recommandations", styles["SectionHeader"]))
         story.append(ListFlowable([ListItem(Paragraph(text, styles["BodySmall"]), leftIndent=12) for text in recommandations], bulletType="bullet"))
 
+    prepared_charts = _prepare_chart_images(charts)
+    if prepared_charts:
+        story.append(PageBreak())
+        story.append(Paragraph("Visualisations du tableau de bord", styles["SectionHeader"]))
+        story.append(Paragraph(f"{len(prepared_charts)} graphique(s) ont été capturés depuis l'interface au moment de l'export.", styles["BodySmall"]))
+        max_width = 6.2 * inch
+        for chart in prepared_charts:
+            chart["buffer"].seek(0)
+            ratio = chart["height"] / chart["width"] if chart["width"] else 0.5
+            ratio = min(max(ratio, 0.35), 1.2)
+            display_width = max_width
+            display_height = display_width * ratio
+            image_flowable = Image(chart["buffer"], width=display_width, height=display_height)
+            image_flowable.hAlign = "CENTER"
+            story.append(Paragraph(chart["title"], styles["BodySmall"]))
+            story.append(image_flowable)
+            story.append(Spacer(1, 0.2 * inch))
+
     doc.build(story)
     buffer.seek(0)
     return buffer
@@ -1546,7 +1607,7 @@ def payroll_forecast_projection():
     return jsonify(result)
 
 
-@payroll_bp.route("/api/export/pdf", methods=["GET"])
+@payroll_bp.route("/api/export/pdf", methods=["GET", "POST"])
 def export_pdf():
     year = request.args.get("year", type=int)
     df = hr_service.extract_payroll_data(year)
@@ -1555,6 +1616,12 @@ def export_pdf():
     overview = _compute_overview(df, year)
     salary = _compute_salary_insights(df)
     financial = _compute_financial_health(df)
-    pdf_buffer = _build_pdf_report(year, overview, salary, financial)
+    charts_payload: Optional[List[Dict[str, object]]] = None
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        charts_value = payload.get("charts")
+        if isinstance(charts_value, list):
+            charts_payload = charts_value
+    pdf_buffer = _build_pdf_report(year, overview, salary, financial, charts=charts_payload)
     filename = f"rapport_paie_{year}.pdf" if year else "rapport_paie.pdf"
     return send_file(pdf_buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)

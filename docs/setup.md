@@ -73,12 +73,27 @@ python runuser.py --username bob --email bob@example.com --password Temp123 --in
 ## 5. Start the application
 
 ```bash
-flask --app main.py run
+SKIP_PIP_INSTALL=0 ./scripts/run_local.sh
+# ou manuellement :
+# python -m venv .venv && source .venv/bin/activate
+# pip install -r requirements.txt
+# set -a; source .env; set +a; python main.py
 ```
 
 The dashboards will now connect to the Oracle instance described in the
 environment variables. If the driver or database are unavailable, the
 application will log a descriptive error instead of crashing.
+
+### Optional tuning
+
+```
+# Limite l'historique chargé par le dashboard RH
+HR_ANALYTICS_LOOKBACK_YEARS=3
+# Rafraîchit les jeux de données toutes les 15 minutes
+HR_ANALYTICS_REFRESH_SECONDS=900
+# Nombre max. d'employés renvoyés dans le carnet
+HR_ANALYTICS_EMPLOYEE_LIMIT=200
+```
 
 ## 6. Background worker & Redis
 
